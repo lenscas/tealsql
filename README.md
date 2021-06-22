@@ -10,7 +10,7 @@ later support for other databases may get added.
 sqlx uses Rust's drop trait to properly release connections back to the pool, commit transactions, etc. tealsql emulates this by taking in functions 
 and doing these thing after the function executed.
 
-##Tealsql-cli
+## Tealsql-cli
 
 The cli tool is similar to [pgtyped](https://github.com/adelsz/pgtyped) but for teal instead of typescript. This is what it does:
 1. Read every .sql file that follow the user supplied pattern
