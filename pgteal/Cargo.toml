@@ -11,7 +11,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 mlua = { version = "0.5", features = ["vendored", "module"] }
-tealr = {path="../../tealr/tealr" ,features=["derive","mlua"],default-features=false}
+tealr = {git="https://github.com/lenscas/tealr",branch="bugfix/missing_typerepresentations" ,features=["derive","mlua"],default-features=false}
 sqlx = {version="0.5.5", features=["runtime-async-std-rustls","postgres","tls"], default-features=false}
 async-std="*"
 futures="0.3.15"
+either="1.6.1"
