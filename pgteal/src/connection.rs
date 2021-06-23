@@ -25,12 +25,12 @@ impl<'c> TypeName for LuaConnection<'c> {
 
 impl<'c> mlua::UserData for LuaConnection<'c> {
     //this registers the methods to mlua
-    fn add_methods<'c, T: ::mlua::UserDataMethods<'c, Self>>(methods: &mut T) {
+    fn add_methods<'lua, T: ::mlua::UserDataMethods<'lua, Self>>(methods: &mut T) {
         let mut x = tealr::mlu::UserDataWrapper::from_user_data_methods(methods);
         <LuaConnection<'_> as ::tealr::mlu::TealData>::add_methods(&mut x);
     }
 }
-impl<'c> tealr::TypeBody for LuaConnection<'c> {
+impl tealr::TypeBody for LuaConnection<'static> {
     //this allows tealr to generate the type definition for this type
     fn get_type_body(_: ::tealr::Direction, gen: &mut ::tealr::TypeGenerator) {
         gen.is_user_data = true;
@@ -53,7 +53,7 @@ impl<'c> LuaConnection<'c> {
         Ok(())
     }
     fn try_run<X, T: Fn(&mut WrappedConnection<'c>) -> X>(
-        &self,
+        &'c self,
         func: T,
     ) -> Result<X, mlua::Error> {
         let x = self.connection.lock();
@@ -77,7 +77,7 @@ impl<'c> LuaConnection<'c> {
         T,
         Func: Fn(Query<Postgres, PgArguments>, &mut WrappedConnection<'c>) -> Result<T, mlua::Error>,
     >(
-        &self,
+        &'c self,
         query: String,
         params: mlua::Value,
         func: Func,
