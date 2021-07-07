@@ -863,8 +863,10 @@ name = "pgteal"
 version = "0.1.0"
 dependencies = [
  "async-std",
+ "either",
  "futures",
  "mlua",
+ "parking_lot",
  "sqlx",
  "tealr",
 ]
@@ -1314,6 +1316,7 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 [[package]]
 name = "tealr"
 version = "0.5.1"
+source = "git+https://github.com/lenscas/tealr?branch=bugfix/missing_typerepresentations#aa76c5b59bbc9e4cc3985b219a431c7debd02e4f"
 dependencies = [
  "bstr",
  "mlua",
@@ -1323,6 +1326,7 @@ dependencies = [
 [[package]]
 name = "tealr_derive"
 version = "0.5.1"
+source = "git+https://github.com/lenscas/tealr?branch=bugfix/missing_typerepresentations#aa76c5b59bbc9e4cc3985b219a431c7debd02e4f"
 dependencies = [
  "proc-macro2",
  "quote",
