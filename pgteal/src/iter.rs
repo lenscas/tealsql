@@ -4,24 +4,22 @@ use std::{
     pin::Pin,
     sync::{Arc, Mutex},
 };
-use tealr::{
-    mlu::{self, TealData},
-    TypeName,
-};
+use tealr::mlu::TealData;
 
 use futures::{Stream, StreamExt};
 use sqlx::{postgres::PgRow, Error};
 
 use crate::pg_row::LuaRow;
 
+type Streaming<'e> = Pin<Box<dyn Stream<Item = Result<PgRow, Error>> + 'e + Send>>;
 #[derive(Clone)]
 pub(crate) struct Iter<'e> {
-    x: Arc<Mutex<Pin<Box<dyn Stream<Item = Result<PgRow, Error>> + 'e + Send>>>>,
+    x: Arc<Mutex<Streaming<'e>>>,
     _x: &'e std::marker::PhantomData<()>,
 }
 
 impl<'e> Iter<'e> {
-    pub(crate) fn new(x: Pin<Box<dyn Stream<Item = Result<PgRow, Error>> + 'e + Send>>) -> Self {
+    pub(crate) fn _new(x: Pin<Box<dyn Stream<Item = Result<PgRow, Error>> + 'e + Send>>) -> Self {
         Self {
             x: Arc::new(Mutex::new(x)),
             _x: &std::marker::PhantomData,
@@ -51,7 +49,7 @@ impl<'e> Iter<'e> {
 }
 
 impl<'e> tealr::TypeName for Iter<'e> {
-    fn get_type_name(dir: tealr::Direction) -> std::borrow::Cow<'static, str> {
+    fn get_type_name(_: tealr::Direction) -> std::borrow::Cow<'static, str> {
         std::borrow::Cow::Borrowed("Iter")
     }
 }

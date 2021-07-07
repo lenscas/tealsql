@@ -866,6 +866,7 @@ dependencies = [
  "either",
  "futures",
  "mlua",
+ "parking_lot",
  "sqlx",
  "tealr",
 ]

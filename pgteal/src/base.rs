@@ -8,6 +8,7 @@ use tealr::{mlu::TealData, TypeName};
 pub(crate) enum Error {
     SqlxError(sqlx::Error),
     Custom(String),
+    DBAfterHandlingError(sqlx::Error, mlua::Error),
 }
 
 impl std::error::Error for Error {}
@@ -29,6 +30,9 @@ impl Display for Error {
         match self {
             Error::SqlxError(x) => x.fmt(f),
             Error::Custom(x) => x.fmt(f),
+            Error::DBAfterHandlingError(x, y) => {
+                write!(f, "DB Error:\n{}\n got thrown while handling:\n{}", x, y)
+            }
         }
     }
 }
