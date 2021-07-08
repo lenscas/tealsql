@@ -1,11 +1,9 @@
 use std::{error::Error, fs::read_to_string, path::Path};
 
-use sqlx_core::{
-    column::Column,
-    executor::Executor,
+use sqlx::{
     pool::Pool,
     postgres::{PgTypeInfo, Postgres},
-    type_info::TypeInfo,
+    Column, Executor, TypeInfo,
 };
 
 use inflector::Inflector;
@@ -86,8 +84,13 @@ pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Erro
 
     Ok(parsed_sql)
 }
+pub(crate) struct TealParts {
+    pub(crate) functions: Vec<String>,
+    pub(crate) input_type: StructAndName,
+    pub(crate) output_type: StructAndName,
+}
 
-pub(crate) async fn query_to_teal(pool: Pool<Postgres>, parsed_query: ParsedSql) -> String {
+pub(crate) async fn query_to_teal(pool: Pool<Postgres>, parsed_query: ParsedSql) -> TealParts {
     let x = pool
         .describe(&parsed_query.sql)
         .await
@@ -117,39 +120,34 @@ pub(crate) async fn query_to_teal(pool: Pool<Postgres>, parsed_query: ParsedSql)
     let input_type = create_struct_from_db(iter, &parsed_query.name, "In");
 
     let function_header = format!(
-        "{} = function (connection: Connection, params: {}): {}",
-        parsed_query.name, "", ""
+        "{}_all = function (params: {}, connection: Connection): {{{}}}",
+        parsed_query.name, input_type.name, return_type.name
     );
+    let function_body = {
+        let params: String = parsed_query
+            .params
+            .iter()
+            .map(|v| "    \"".to_owned() + v + "\"")
+            .collect::<Vec<_>>()
+            .join(",\n");
+        let params = format!("local param_order:{{string}} = {{\n{}\n}}", params);
+        format!(
+            "      {}
+        local query_params = {{}}
+        for k,v in ipairs(param_order) do
+            query_params[k] = (params as {{string:any}})[v]
+        end
+        return connection:fetch_all([[{}]],query_params) as {{{}}}",
+            params, parsed_query.sql, return_type.name
+        )
+    };
 
-    // let function_body = {
-    // let sql = parsed_query
-    // .params
-    // .iter()
-    // .enumerate()
-    // .map(|(key, v)| (key + 1, v))
-    // .fold(parsed_query.sql, |query, (key, param)| {
-    // query.replace(
-    // &("$".to_string() + &key.to_string()),
-    // &format!("connection:escape(params[\"{}\"])", param),
-    // )
-    // })
-    // .replace("\\", "\\\\")
-    // .replace("\"", "\\\"");
-    // format!(
-    // "
-    // local sql = \"{}\"
-    // local cursor = connection:execute(sql)
-    // if cursor is table then
-    // local res = {}
-    //
-    // ",
-    // sql
-    // )
-    // };
-
-    println!("{}\n{}\n{}", function_header, "function_body", "end");
-
-    format!("{}\n{}", input_type, return_type)
+    let function = format!("{}\n{}\nend", function_header, function_body);
+    TealParts {
+        functions: vec![function],
+        input_type,
+        output_type: return_type,
+    }
 }
 
 pub fn sql_type_to_teal(type_name: &str) -> &'static str {
@@ -163,11 +161,17 @@ pub fn sql_type_to_teal(type_name: &str) -> &'static str {
         x => panic!("unsopperted typename: {}", x),
     }
 }
+
+pub(crate) struct StructAndName {
+    pub(crate) name: String,
+    pub(crate) written_struct: String,
+}
+
 fn create_struct_from_db<'a, 'b, X: Iterator<Item = (&'a str, &'b [PgTypeInfo])>>(
     fields: X,
     name: &str,
     attached: &str,
-) -> String {
+) -> StructAndName {
     let full_name = name.to_pascal_case() + attached;
     let fields = fields
         .map(|(key, teal_type)| {
@@ -182,10 +186,14 @@ fn create_struct_from_db<'a, 'b, X: Iterator<Item = (&'a str, &'b [PgTypeInfo])>
             )
         })
         .collect::<Vec<_>>();
-    if fields.is_empty() {
-        format!("    type {} = nil", full_name)
+    let written_struct = if fields.is_empty() {
+        format!("local type {} = nil", full_name)
     } else {
-        let return_type = "        ".to_string() + &fields.join(",\n        ");
-        format!("    struct {} {{\n{}\n    }}", full_name, return_type)
+        let return_type = "    ".to_string() + &fields.join("\n    ");
+        format!("local type {} = record \n{}\nend", full_name, return_type)
+    };
+    StructAndName {
+        name: full_name,
+        written_struct,
     }
 }

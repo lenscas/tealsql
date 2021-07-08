@@ -1,5 +1,5 @@
 [workspace]
 members = [
-    #"pgteal_cli",
-    "pgteal"
+  "pgteal_cli",
+  "pgteal",
 ]
