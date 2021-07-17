@@ -2,7 +2,6 @@
 
 use either::Either;
 use futures::stream::BoxStream;
-use parking_lot::{MappedMutexGuard, RawMutex};
 use sqlx::{Acquire, Database, Error, Executor, Postgres};
 
 #[derive(Debug)]
@@ -13,21 +12,19 @@ pub(crate) enum WrappedConnection {
     //ConnectionRef(&'c mut sqlx::postgres::PgConnection),
 }
 
+type FetchManyResult<Res, Row> = Result<Either<Res, Row>, Error>;
+type StreamResult<'e, Res, Row> = BoxStream<'e, FetchManyResult<Res, Row>>;
+
 impl<'c> Executor<'c> for &'c mut WrappedConnection {
     type Database = Postgres;
 
     fn fetch_many<'e, 'q: 'e, E: 'q>(
         self,
         query: E,
-    ) -> BoxStream<
+    ) -> StreamResult<
         'e,
-        Result<
-            Either<
-                <Self::Database as sqlx::Database>::QueryResult,
-                <Self::Database as sqlx::Database>::Row,
-            >,
-            Error,
-        >,
+        <Self::Database as sqlx::Database>::QueryResult,
+        <Self::Database as sqlx::Database>::Row,
     >
     where
         'c: 'e,

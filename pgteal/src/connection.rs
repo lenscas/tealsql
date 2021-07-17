@@ -186,7 +186,7 @@ impl<'c> TealData for LuaConnection<'c> {
                 LuaRow::from(x).to_lua(lua)
             },
         );
-        methods.add_method_mut("begin", |lua, this, func: mlua::Function| {
+        methods.add_method_mut("begin", |_, this, func: mlua::Function| {
             let connection = this.connection.take().ok_or_else(|| {
                 mlua::Error::external(crate::base::Error::Custom(
                     "Tried to use a connection that is used for a transaction.".into(),
@@ -205,7 +205,7 @@ impl<'c> TealData for LuaConnection<'c> {
             if let Err(x) = res {
                 drop(guard);
                 this.connection = Some(connection);
-                return Err(mlua::Error::external(crate::base::Error::SqlxError(x)));
+                return Err(mlua::Error::external(crate::base::Error::Sqlx(x)));
             }
             drop(guard);
             let lua_con = LuaConnection::from(connection.clone());
@@ -234,10 +234,10 @@ impl<'c> TealData for LuaConnection<'c> {
             this.connection = Some(connection);
             match (res, rollback_res) {
                 (Err(res_error), Err(rollback_error)) => Err(mlua::Error::external(
-                    crate::base::Error::DBAfterHandlingError(rollback_error, res_error),
+                    crate::base::Error::DBErrorAfterHandling(rollback_error, res_error),
                 )),
                 (Err(res_err), _) => Err(res_err),
-                (_, Err(x)) => Err(mlua::Error::external(crate::base::Error::SqlxError(x))),
+                (_, Err(x)) => Err(mlua::Error::external(crate::base::Error::Sqlx(x))),
                 (Ok(x), Ok(_)) => Ok(x),
             }
         })

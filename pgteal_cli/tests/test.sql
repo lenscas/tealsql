@@ -5,7 +5,7 @@ FROM characters;
 SELECT *
 FROM characters
 WHERE id = :id;
-/* @name= test2 */
+/* @name= test3 */
 SELECT *
 FROM characters
 WHERE id = :id2;

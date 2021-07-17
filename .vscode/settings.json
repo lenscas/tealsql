@@ -1,0 +1,24 @@
+{
+	"cSpell.words": [
+		"BIGSERIAL",
+		"BYTEA",
+		"JSONB",
+		"Lenscas",
+		"SMALLINT",
+		"SMALLSERIAL",
+		"VARCHAR",
+		"inflector",
+		"ipairs",
+		"libpgteal",
+		"mlua",
+		"pgteal",
+		"pgtyped",
+		"postgres",
+		"postgresql",
+		"replacen",
+		"sqlx",
+		"tealr",
+		"tealsql",
+		"vals"
+	]
+}
