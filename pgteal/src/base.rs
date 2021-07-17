@@ -6,9 +6,9 @@ use tealr::{mlu::TealData, TypeName};
 
 #[derive(Debug)]
 pub(crate) enum Error {
-    SqlxError(sqlx::Error),
+    Sqlx(sqlx::Error),
     Custom(String),
-    DBAfterHandlingError(sqlx::Error, mlua::Error),
+    DBErrorAfterHandling(sqlx::Error, mlua::Error),
 }
 
 impl std::error::Error for Error {}
@@ -21,16 +21,16 @@ impl From<Error> for mlua::Error {
 
 impl From<sqlx::Error> for Error {
     fn from(x: sqlx::Error) -> Self {
-        Error::SqlxError(x)
+        Error::Sqlx(x)
     }
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::SqlxError(x) => x.fmt(f),
+            Error::Sqlx(x) => x.fmt(f),
             Error::Custom(x) => x.fmt(f),
-            Error::DBAfterHandlingError(x, y) => {
+            Error::DBErrorAfterHandling(x, y) => {
                 write!(f, "DB Error:\n{}\n got thrown while handling:\n{}", x, y)
             }
         }

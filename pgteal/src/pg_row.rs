@@ -59,7 +59,7 @@ fn decode_value(value: PgValue, l: &mlua::Lua) -> mlua::Result<mlua::Value<'_>> 
             value.try_decode::<String>().map(c(l))
         }
         "BYTEA" => value.try_decode::<bool>().map(c(l)),
-        x => panic!("unsopperted typename: {}", x),
+        x => panic!("unsupported typename: {}", x),
     }
     .map_err(mlua::Error::external)?
 }
