@@ -23,3 +23,25 @@ The cli tool is similar to [pgtyped](https://github.com/adelsz/pgtyped) but for 
 Using this tool ensures that your queries are always up to date with your database, allows the teal compiler to make sure you don't pass the wrong types to your query and also lets it know what types are being returned.
 
 Or in other words: More type safety!
+
+### Why tealsql?
+Tealsql is still in development, but already contains some features that (if you ask me) make it a better choice compared to the other popular sql libraries.
+
+|  |tealsql | luasql | luadbi|
+| --- | --- | --- | --- |
+| converts sql types to their lua equivalant| yes | no (returns as string only) | yes (not checked myself) |
+| uses prepared statements | yes | no |yes|
+| has connection pools | yes | no | no |
+| has build in typedefs for teal | almost | only external| no |
+| has proper transaction support | yes | configureable autocomit support| configureable autocomit support|
+| fetch all| yes | yes| yes |
+| fetch exactly one | yes | no | no |
+| fetch zero or one | yes | no | no |
+| only execute | yes | no | yes |
+| manual escapement| no | yes | yes |
+| lua5.1 support| planned | yes| yes|
+| lua5.2 support| planned | yes | yes |
+| lua5.3 support | yes | yes | yes|
+| lua5.4 support | planned | yes | no |
+| async api support | planned | maybe? | maybe? |
+
