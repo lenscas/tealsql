@@ -1,15 +1,84 @@
-use std::{ops::DerefMut, sync::Arc};
+use std::{collections::HashMap, ops::DerefMut, sync::Arc};
 
 use async_std::task::block_on;
 use futures::prelude::stream::StreamExt;
 use mlua::ToLua;
-use parking_lot::{MappedMutexGuard, Mutex};
+use parking_lot::{lock_api::MutexGuard, MappedMutexGuard, Mutex};
 use sqlx::{
     pool::PoolConnection, postgres::PgArguments, query::Query, Executor, Postgres, Statement,
 };
 use tealr::{mlu::TealData, TypeName};
 
 use crate::{internal_connection_wrapper::WrappedConnection, pg_row::LuaRow};
+
+fn get_lock<'a>(
+    con: &'a Arc<Mutex<Option<WrappedConnection>>>,
+) -> Result<MappedMutexGuard<'a, WrappedConnection>, mlua::Error> {
+    let x = con.lock();
+    parking_lot::lock_api::MutexGuard::<'_, _, _>::try_map(x, |v| v.as_mut()).map_err(|_| {
+        mlua::Error::external(crate::base::Error::Custom(
+            "Connection already dropped".into(),
+        ))
+    })
+}
+
+fn add_params<'a, 'b, T: Into<ValueHolderOrLuaValue<'b>>>(
+    connection: &'a Arc<Mutex<Option<WrappedConnection>>>,
+    sql: &'a str,
+    params: T,
+) -> Result<
+    (
+        Query<'a, Postgres, PgArguments>,
+        MappedMutexGuard<'a, WrappedConnection>,
+    ),
+    mlua::Error,
+> {
+    let mut v = get_lock(connection)?;
+    let statement = block_on(v.prepare(sql)).map_err(mlua::Error::external)?;
+    let mut query = sqlx::query(sql);
+    let params = params.into();
+    let needed = statement
+        .parameters()
+        .map(|v| v.map_left(|v| v.len()).left_or_else(|v| v))
+        .unwrap_or(0);
+    match params {
+        ValueHolderOrLuaValue::Lua(params) => {
+            if let mlua::Value::Table(x) = &params {
+                for k in 1..=needed {
+                    let v: mlua::Value = x.get(k)?;
+                    query = match v {
+                        mlua::Value::Boolean(x) => query.bind(x),
+                        mlua::Value::Integer(x) => query.bind(x),
+                        mlua::Value::Number(x) => query.bind(x),
+                        mlua::Value::String(x) => query.bind(x.to_str()?.to_owned()),
+                        mlua::Value::Nil => query.bind::<Option<bool>>(None),
+                        x => {
+                            return Err(mlua::Error::FromLuaConversionError {
+                                from: x.type_name(),
+                                to: "bool, number,string",
+                                message: Some("Can't store this values in the db".to_string()),
+                            })
+                        }
+                    }
+                }
+            }
+        }
+        ValueHolderOrLuaValue::Normal(params) => {
+            for k in 1..=needed {
+                let v = params.get(&(k as i64)).cloned().unwrap_or(ValueHolder::Nil);
+                query = match v {
+                    ValueHolder::String(x) => query.bind(x),
+                    ValueHolder::Number(x) => query.bind(x),
+                    ValueHolder::Integer(x) => query.bind(x),
+                    ValueHolder::Boolean(x) => query.bind(x),
+                    ValueHolder::Nil => query.bind::<Option<bool>>(None),
+                }
+            }
+        }
+    }
+
+    Ok((query, v))
+}
 
 #[derive(Clone)]
 pub(crate) struct LuaConnection<'c> {
@@ -124,16 +193,66 @@ impl<'c> From<Arc<Mutex<Option<WrappedConnection>>>> for LuaConnection<'c> {
     }
 }
 
-// impl<'c> From<Transaction<'c, Postgres>> for LuaConnection<'c> {
-//     fn from(transaction: Transaction<'c, Postgres>) -> Self {
-//         LuaConnection {
-//             connection: Arc::new(Mutex::new(Some(WrappedConnection::Transaction(
-//                 transaction,
-//             )))),
-//             x: &std::marker::PhantomData,
-//         }
-//     }
-// }
+enum ValueHolderOrLuaValue<'lua> {
+    Lua(mlua::Value<'lua>),
+    Normal(HashMap<i64, ValueHolder>),
+}
+impl From<HashMap<i64, ValueHolder>> for ValueHolderOrLuaValue<'static> {
+    fn from(x: HashMap<i64, ValueHolder>) -> Self {
+        Self::Normal(x)
+    }
+}
+
+impl<'lua> From<mlua::Value<'lua>> for ValueHolderOrLuaValue<'lua> {
+    fn from(x: mlua::Value<'lua>) -> Self {
+        Self::Lua(x)
+    }
+}
+
+#[derive(Clone)]
+enum ValueHolder {
+    String(String),
+    Number(f64),
+    Integer(i64),
+    Boolean(bool),
+    Nil,
+}
+
+impl ValueHolder {
+    fn from_lua_value(value: mlua::Value) -> mlua::Result<Self> {
+        Ok(match value {
+            mlua::Value::Nil => Self::Nil,
+            mlua::Value::Boolean(x) => Self::Boolean(x),
+            mlua::Value::Integer(x) => Self::Integer(x),
+            mlua::Value::Number(x) => Self::Number(x),
+            mlua::Value::String(x) => Self::String(x.to_str()?.to_owned()),
+            x => {
+                return Err(mlua::Error::FromLuaConversionError {
+                    from: x.type_name(),
+                    to: "bool, number,string",
+                    message: Some("Can't store this values in the db".to_string()),
+                })
+            }
+        })
+    }
+    fn value_to_map(value: mlua::Value) -> mlua::Result<HashMap<i64, Self>> {
+        match value {
+            mlua::Value::Table(x) => {
+                let mut map = HashMap::new();
+                for pair in x.pairs::<mlua::Value, mlua::Value>() {
+                    let (k, v) = pair?;
+                    if let mlua::Value::Integer(k) = k {
+                        let value = Self::from_lua_value(v)?;
+                        map.insert(k, value);
+                    }
+                }
+                Ok(map)
+            }
+
+            _ => Ok(HashMap::new()),
+        }
+    }
+}
 
 impl<'c> TealData for LuaConnection<'c> {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
@@ -167,6 +286,48 @@ impl<'c> TealData for LuaConnection<'c> {
                         .collect(),
                 );
                 x.into_iter().collect::<Result<Vec<_>, _>>()
+            },
+        );
+        methods.add_method(
+            "fetch_all_async",
+            |lua, this, (query, params): (String, mlua::Value)| {
+                let params = ValueHolder::value_to_map(params)?;
+                //std::thread::spawn(move || {});
+                let connection = this.connection.clone().ok_or_else(|| {
+                    mlua::Error::external(crate::base::Error::Custom(
+                        "Tried to use a connection that is used for a transaction.".into(),
+                    ))
+                })?;
+                let (sender, rec) = std::sync::mpsc::channel();
+                let x = std::thread::spawn(move || {
+                    let connection = connection.clone();
+                    match add_params(&connection, &query, params) {
+                        Ok((query, mut con)) => {
+                            let mut stream = query.fetch(con.deref_mut());
+                            loop {
+                                let next = block_on(stream.next());
+                                println!("Got a new row in rust!");
+                                let res = match next {
+                                    None => break,
+                                    Some(Ok(x)) => sender.send(crate::iter::AsyncMessage::Value(x)),
+                                    Some(Err(x)) => {
+                                        sender.send(crate::iter::AsyncMessage::Error(x))
+                                    }
+                                };
+                                if res.is_err() {
+                                    break;
+                                }
+                            }
+                            drop(sender)
+                        }
+                        Err(x) => {
+                            if let mlua::Error::ExternalError(x) = x {
+                                let _ = sender.send(crate::iter::AsyncMessage::DynError(x));
+                            }
+                        }
+                    };
+                });
+                Ok(crate::iter::Iter::new(x, rec))
             },
         );
         methods.add_method(
