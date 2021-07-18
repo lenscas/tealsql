@@ -25,23 +25,23 @@ Using this tool ensures that your queries are always up to date with your databa
 Or in other words: More type safety!
 
 ### Why tealsql?
+
 Tealsql is still in development, but already contains some features that (if you ask me) make it a better choice compared to the other popular sql libraries.
 
-|  |tealsql | luasql | luadbi|
-| --- | --- | --- | --- |
-| converts sql types to their lua equivalant| yes | no (returns as string only) | yes (not checked myself) |
-| uses prepared statements | yes | no |yes|
-| has connection pools | yes | no | no |
-| has build in typedefs for teal | almost | only external| no |
-| has proper transaction support | yes | configureable autocomit support| configureable autocomit support|
-| fetch all| yes | yes| yes |
-| fetch exactly one | yes | no | no |
-| fetch zero or one | yes | no | no |
-| only execute | yes | no | yes |
-| manual escapement| no | yes | yes |
-| lua5.1 support| planned | yes| yes|
-| lua5.2 support| planned | yes | yes |
-| lua5.3 support | yes | yes | yes|
-| lua5.4 support | planned | yes | no |
-| async api support | planned | maybe? | maybe? |
-
+|                                            | tealsql                                                     | luasql                          | luadbi                          |
+| ------------------------------------------ | ----------------------------------------------------------- | ------------------------------- | ------------------------------- |
+| converts sql types to their lua equivalant | yes                                                         | no (returns as string only)     | yes (not checked myself)        |
+| uses prepared statements                   | yes                                                         | no                              | yes                             |
+| has connection pools                       | yes                                                         | no                              | no                              |
+| has build in typedefs for teal             | almost                                                      | only external                   | no                              |
+| has proper transaction support             | yes                                                         | configureable autocomit support | configureable autocomit support |
+| fetch all                                  | yes                                                         | yes                             | yes                             |
+| fetch exactly one                          | yes                                                         | no                              | no                              |
+| fetch zero or one                          | yes                                                         | no                              | no                              |
+| only execute                               | yes                                                         | no                              | yes                             |
+| manual escapement                          | no                                                          | yes                             | yes                             |
+| lua5.1 support                             | planned                                                     | yes                             | yes                             |
+| lua5.2 support                             | planned                                                     | yes                             | yes                             |
+| lua5.3 support                             | yes                                                         | yes                             | yes                             |
+| lua5.4 support                             | planned                                                     | yes                             | no                              |
+| async api support                          | development [#3](https://github.com/lenscas/tealsql/pull/3) | maybe?                          | maybe?                          |
