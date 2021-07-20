@@ -1,11 +1,11 @@
 /* @name= test */
-SELECT *
+SELECT id,user_id
 FROM characters;
 /* @name= test2 */
-SELECT *
+SELECT id,user_id
 FROM characters
 WHERE id = :id;
 /* @name= test3 */
-SELECT *
+SELECT id,user_id
 FROM characters
 WHERE id = :id2;
