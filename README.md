@@ -44,4 +44,4 @@ Tealsql is still in development, but already contains some features that (if you
 | lua5.2 support                             | planned                                                     | yes                             | yes                             |
 | lua5.3 support                             | yes                                                         | yes                             | yes                             |
 | lua5.4 support                             | planned                                                     | yes                             | no                              |
-| async api support                          | development [#3](https://github.com/lenscas/tealsql/pull/3) | maybe?                          | maybe?                          |
+| async api support                          | yes                                                         | maybe?                          | maybe?                          |
