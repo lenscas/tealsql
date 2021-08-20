@@ -1,7 +1,7 @@
 use async_std::task::block_on;
 
 use sqlx::PgPool;
-use tealr::{mlu::TealData, TypeName};
+use tealr::{mlu::mlua, mlu::TealData, TypeName};
 
 use crate::connection::LuaConnection;
 
@@ -17,14 +17,17 @@ impl From<PgPool> for Pool {
 
 impl TealData for Pool {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
-        methods.add_method("get_connection", |_, me, call_back: mlua::Function| {
-            let con = block_on(me.pool.acquire())
-                .map_err(crate::base::Error::from)
-                .map(LuaConnection::from)?;
-            let value = call_back.call::<_, mlua::Value>(con.clone())?;
-            con.drop_con()?;
+        methods.add_method(
+            "get_connection",
+            |_, me, call_back: tealr::mlu::TypedFunction<LuaConnection, crate::Res>| {
+                let con = block_on(me.pool.acquire())
+                    .map_err(crate::base::Error::from)
+                    .map(LuaConnection::from)?;
+                let value = call_back.call(con.clone())?;
+                con.drop_con()?;
 
-            Ok((true, value))
-        })
+                Ok((true, value))
+            },
+        )
     }
 }

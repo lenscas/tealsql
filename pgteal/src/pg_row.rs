@@ -1,11 +1,22 @@
-use mlua::ToLua;
+use std::borrow::Cow;
+
+use crate::connection::Input;
 use sqlx::{
     postgres::{PgRow, PgValue},
     Column, Row, TypeInfo, Value, ValueRef,
 };
+use tealr::{
+    mlu::{mlua, mlua::ToLua},
+    TypeName,
+};
 
 pub(crate) struct LuaRow {
     row: PgRow,
+}
+impl TypeName for LuaRow {
+    fn get_type_name(dir: tealr::Direction) -> std::borrow::Cow<'static, str> {
+        Cow::Owned(format!("{{string:{}}}", Input::get_type_name(dir)))
+    }
 }
 impl<'lua> mlua::ToLua<'lua> for LuaRow {
     fn to_lua(self, lua: &'lua mlua::Lua) -> std::result::Result<mlua::Value<'lua>, mlua::Error> {

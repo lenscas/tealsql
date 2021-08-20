@@ -1,22 +1,23 @@
 [package]
-name = "pgteal"
-version = "0.1.0"
 authors = ["lenscas <lenscas@gmail.com>"]
 edition = "2018"
+name = "pgteal"
+version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-crate-type = ["rlib","cdylib"]
+crate-type = ["rlib", "cdylib"]
 
 [[bin]]
-name="main"
+name = "main"
 
 [dependencies]
-mlua = { version = "0.5", features = ["vendored", "module"] }
-tealr = {git="https://github.com/lenscas/tealr",branch="bugfix/missing_typerepresentations" ,features=["derive","mlua"],default-features=false}
-sqlx = {version="0.5.5", features=["runtime-async-std-rustls","postgres","tls"], default-features=false}
-async-std="*"
-futures="0.3.15"
-either="1.6.1"
-parking_lot="0.11.1"
+async-std = "*"
+either = "1.6.1"
+futures = "0.3.15"
+mlua = "*"
+parking_lot = "0.11.1"
+sqlx = {version = "0.5.5", features = ["runtime-async-std-rustls", "postgres", "tls"], default-features = false}
+#tealr = {git = "https://github.com/lenscas/tealr", branch = "master", features = ["derive", "mlua", "mlua_vendored", "mlua_lua54", "mlua_module"], default-features = false}
+tealr = {path = "../../tealr/tealr", features = ["derive", "mlua", "mlua_vendored", "mlua_lua54", "mlua_module"], default-features = false}

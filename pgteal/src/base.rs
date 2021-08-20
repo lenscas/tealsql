@@ -1,8 +1,13 @@
 use std::fmt::Display;
 
 use async_std::task::block_on;
-use sqlx::PgPool;
-use tealr::{mlu::TealData, TypeName};
+use sqlx::{Connection, PgPool};
+use tealr::{
+    mlu::{mlua, TealData},
+    TypeName,
+};
+
+use crate::{connection::LuaConnection, Res};
 
 #[derive(Debug)]
 pub(crate) enum Error {
@@ -42,13 +47,22 @@ pub(crate) struct Base {}
 
 impl TealData for Base {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
-        methods.add_function("connectPool", |_, connection_string: String| {
+        methods.add_function("connect_poll", |_, connection_string: String| {
             let res = async {
                 let pool = PgPool::connect(&connection_string).await?;
                 Ok(crate::pool::Pool::from(pool))
             };
             let res: Result<_, Error> = block_on(res);
             Ok(res?)
+        });
+        methods.add_function("connect", |_,(connection_string, func): (String,tealr::mlu::TypedFunction<LuaConnection,Res>)| {
+            let con = async {
+                sqlx::postgres::PgConnection::connect(&connection_string).await.map(LuaConnection::from)
+            };
+            let con = block_on(con).map_err(mlua::Error::external)?;
+            let res =func.call(con.clone());
+            con.drop_con()?;
+            res
         })
     }
 }

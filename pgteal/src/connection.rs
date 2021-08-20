@@ -1,20 +1,27 @@
+use std::collections::BTreeMap;
 use std::{ops::DerefMut, sync::Arc};
 
 use async_std::task::block_on;
 use futures::prelude::stream::StreamExt;
-use mlua::ToLua;
 use parking_lot::{MappedMutexGuard, Mutex};
+use sqlx::PgConnection;
 use sqlx::{
     pool::PoolConnection, postgres::PgArguments, query::Query, Executor, Postgres, Statement,
 };
-use tealr::{mlu::TealData, TypeName};
-
-use crate::{
-    internal_connection_wrapper::WrappedConnection,
-    iter::Iter,
-    pg_row::LuaRow,
-    value_holder::{ValueHolder, ValueHolderOrLuaValue},
+use tealr::mlu::mlua;
+use tealr::{
+    mlu::{
+        mlua::{Integer, Number},
+        TealData,
+    },
+    TypeName,
 };
+
+tealr::create_union_mlua!(pub(crate) Derives(PartialEq) enum Input = String | Integer | Number | bool);
+
+type QueryParamCollection = BTreeMap<i64, Input>;
+
+use crate::{internal_connection_wrapper::WrappedConnection, iter::Iter, pg_row::LuaRow};
 
 fn get_lock<'a>(
     con: &'a Arc<Mutex<Option<WrappedConnection>>>,
@@ -27,13 +34,13 @@ fn get_lock<'a>(
     })
 }
 
-fn add_params<'a, 'b, T: Into<ValueHolderOrLuaValue<'b>>>(
+fn add_params<'b, 'a: 'b>(
     connection: &'a Arc<Mutex<Option<WrappedConnection>>>,
     sql: &'a str,
-    params: T,
+    params: &'b QueryParamCollection,
 ) -> Result<
     (
-        Query<'a, Postgres, PgArguments>,
+        Query<'b, Postgres, PgArguments>,
         MappedMutexGuard<'a, WrappedConnection>,
     ),
     mlua::Error,
@@ -41,44 +48,19 @@ fn add_params<'a, 'b, T: Into<ValueHolderOrLuaValue<'b>>>(
     let mut v = get_lock(connection)?;
     let statement = block_on(v.prepare(sql)).map_err(mlua::Error::external)?;
     let mut query = sqlx::query(sql);
-    let params = params.into();
     let needed = statement
         .parameters()
         .map(|v| v.map_left(|v| v.len()).left_or_else(|v| v))
         .unwrap_or(0);
-    match params {
-        ValueHolderOrLuaValue::Lua(params) => {
-            if let mlua::Value::Table(x) = &params {
-                for k in 1..=needed {
-                    let v: mlua::Value = x.get(k)?;
-                    query = match v {
-                        mlua::Value::Boolean(x) => query.bind(x),
-                        mlua::Value::Integer(x) => query.bind(x),
-                        mlua::Value::Number(x) => query.bind(x),
-                        mlua::Value::String(x) => query.bind(x.to_str()?.to_owned()),
-                        mlua::Value::Nil => query.bind::<Option<bool>>(None),
-                        x => {
-                            return Err(mlua::Error::FromLuaConversionError {
-                                from: x.type_name(),
-                                to: "bool, number,string",
-                                message: Some("Can't store this values in the db".to_string()),
-                            })
-                        }
-                    }
-                }
-            }
-        }
-        ValueHolderOrLuaValue::Normal(params) => {
-            for k in 1..=needed {
-                let v = params.get(&(k as i64)).cloned().unwrap_or(ValueHolder::Nil);
-                query = match v {
-                    ValueHolder::String(x) => query.bind(x),
-                    ValueHolder::Number(x) => query.bind(x),
-                    ValueHolder::Integer(x) => query.bind(x),
-                    ValueHolder::Boolean(x) => query.bind(x),
-                    ValueHolder::Nil => query.bind::<Option<bool>>(None),
-                }
-            }
+
+    for k in 1..=needed {
+        let v = params.get(&(k as i64));
+        query = match v {
+            Some(Input::String(x)) => query.bind(x),
+            Some(Input::Number(x)) => query.bind(x),
+            Some(Input::Integer(x)) => query.bind(x),
+            Some(Input::bool(x)) => query.bind(x),
+            None => query.bind::<Option<bool>>(None),
         }
     }
 
@@ -98,7 +80,7 @@ impl<'c> TypeName for LuaConnection<'c> {
 }
 
 impl<'c> mlua::UserData for LuaConnection<'c> {
-    fn add_methods<'lua, T: ::mlua::UserDataMethods<'lua, Self>>(methods: &mut T) {
+    fn add_methods<'lua, T: mlua::UserDataMethods<'lua, Self>>(methods: &mut T) {
         let mut x = tealr::mlu::UserDataWrapper::from_user_data_methods(methods);
         <LuaConnection<'_> as ::tealr::mlu::TealData>::add_methods(&mut x);
     }
@@ -116,12 +98,15 @@ impl<'c> LuaConnection<'c> {
         let mut x = self
             .connection
             .as_ref()
-            .expect("Tried to drop a connection that we do not have access to.")
+            .ok_or_else(|| {
+                mlua::Error::external(crate::base::Error::Custom(
+                    "Tried to drop a connection that we do not have access to.".to_string(),
+                ))
+            })?
             .lock();
         *x = None;
         Ok(())
     }
-
     fn unwrap_connection_option(
         &self,
     ) -> Result<&Arc<Mutex<Option<WrappedConnection>>>, mlua::Error> {
@@ -131,14 +116,15 @@ impl<'c> LuaConnection<'c> {
             ))
         })
     }
-    fn add_params<'a>(
+
+    fn add_params<'b, 'a: 'b>(
         &'a self,
         sql: &'a str,
-        params: mlua::Value,
+        params: &'b QueryParamCollection,
     ) -> Result<
         (
-            Query<'_, Postgres, PgArguments>,
-            MappedMutexGuard<WrappedConnection>,
+            Query<'b, Postgres, PgArguments>,
+            MappedMutexGuard<'a, WrappedConnection>,
         ),
         mlua::Error,
     > {
@@ -165,28 +151,37 @@ impl<'c> From<Arc<Mutex<Option<WrappedConnection>>>> for LuaConnection<'c> {
     }
 }
 
+impl<'c> From<sqlx::PgConnection> for LuaConnection<'c> {
+    fn from(connection: PgConnection) -> Self {
+        LuaConnection {
+            connection: Some(Arc::new(Mutex::new(Some(WrappedConnection::Connection(
+                connection,
+            ))))),
+            x: &std::marker::PhantomData,
+        }
+    }
+}
+
 impl<'c> TealData for LuaConnection<'c> {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
         methods.add_method(
             "fetch_optional",
-            |lua, this, (query, params): (String, mlua::Value)| {
-                let (query, mut v) = this.add_params(&query, params)?;
+            |_, this, (query, params): (String, QueryParamCollection)| {
+                let (query, mut v) = this.add_params(&query, &params)?;
                 let x =
                     block_on(query.fetch_optional(v.deref_mut())).map_err(mlua::Error::external);
                 match x {
-                    Ok(Some(x)) => Ok(Some(LuaRow::from(x).to_lua(lua)?)),
-                    Ok(None) => {
-                        println!("got Ok(None)");
-                        Ok(None)
-                    }
+                    Ok(Some(x)) => Ok(Some(LuaRow::from(x))),
+                    Ok(None) => Ok(None),
                     Err(x) => Err(dbg!(x)),
                 }
             },
         );
         methods.add_method(
             "fetch_all",
-            |lua, this, (query, params): (String, mlua::Value)| {
-                let (query, mut v) = this.add_params(&query, params)?;
+            |_, this, (query, params): (String, QueryParamCollection)| {
+                let (query, mut v) = this.add_params(&query, &params)?;
+
                 let mut stream = query.fetch(v.deref_mut());
                 let mut items = Vec::new();
                 loop {
@@ -197,18 +192,17 @@ impl<'c> TealData for LuaConnection<'c> {
                         None => break,
                     }
                 }
-                items.to_lua(lua)
+                Ok(items)
             },
         );
         methods.add_method(
             "fetch_all_async",
-            |_, this, (query, params, chunk_count): (String, mlua::Value, Option<usize>)| {
+            |_, this, (query, params, chunk_count): (String, QueryParamCollection, Option<usize>)| {
                 let chunk_count = chunk_count.unwrap_or(1).max(1);
-                let params = ValueHolder::value_to_map(params)?;
                 let connection = this.unwrap_connection_option()?.clone();
                 let iter = Iter::from_func(move |sender| {
                     move || {
-                        match add_params(&connection, &query, params) {
+                        match add_params(&connection, &query, &params) {
                             Ok((query, mut con)) => {
                                 let mut stream = query
                                     .fetch(con.deref_mut())
@@ -246,8 +240,8 @@ impl<'c> TealData for LuaConnection<'c> {
         );
         methods.add_method(
             "execute",
-            |_, this, (query, params): (String, mlua::Value)| {
-                let (query, mut v) = this.add_params(&query, params)?;
+            |_, this, (query, params): (String, QueryParamCollection)| {
+                let (query, mut v) = this.add_params(&query, &params)?;
                 let x =
                     dbg!(block_on(query.execute(v.deref_mut())).map_err(mlua::Error::external))?;
                 Ok(x.rows_affected())
@@ -255,66 +249,69 @@ impl<'c> TealData for LuaConnection<'c> {
         );
         methods.add_method(
             "fetch_one",
-            |lua, this, (query, params): (String, mlua::Value)| {
-                let (query, mut v) = this.add_params(&query, params)?;
+            |_, this, (query, params): (String, QueryParamCollection)| {
+                let (query, mut v) = this.add_params(&query, &params)?;
                 let x = block_on(query.fetch_one(v.deref_mut())).map_err(mlua::Error::external)?;
-                LuaRow::from(x).to_lua(lua)
+                Ok(LuaRow::from(x))
             },
         );
-        methods.add_method_mut("begin", |_, this, func: mlua::Function| {
-            let connection = this.connection.take().ok_or_else(|| {
-                mlua::Error::external(crate::base::Error::Custom(
-                    "Tried to use a connection that is used for a transaction.".into(),
-                ))
-            })?;
-            let mut guard = connection.lock();
-            let con = match guard.as_mut() {
-                Some(con) => con,
-                None => {
-                    return Err(mlua::Error::external(crate::base::Error::Custom(
-                        "Connection already dropped".into(),
-                    )))
+        methods.add_method_mut(
+            "begin",
+            |_, this, func: tealr::mlu::TypedFunction<LuaConnection, (Option<bool>, Option<crate::Res>)>| {
+                let connection = this.connection.take().ok_or_else(|| {
+                    mlua::Error::external(crate::base::Error::Custom(
+                        "Tried to use a connection that is used for a transaction.".into(),
+                    ))
+                })?;
+                let mut guard = connection.lock();
+                let con = match guard.as_mut() {
+                    Some(con) => con,
+                    None => {
+                        return Err(mlua::Error::external(crate::base::Error::Custom(
+                            "Connection already dropped".into(),
+                        )))
+                    }
+                };
+                let res = block_on(con.execute("BEGIN;"));
+                if let Err(x) = res {
+                    drop(guard);
+                    this.connection = Some(connection);
+                    return Err(mlua::Error::external(crate::base::Error::Sqlx(x)));
                 }
-            };
-            let res = block_on(con.execute("BEGIN;"));
-            if let Err(x) = res {
+                drop(guard);
+                let lua_con = LuaConnection::from(connection.clone());
+                let res: Result<(bool, Option<crate::Res>), _> =
+                    func.call(lua_con.clone()).map(|v| match v {
+                        (None, x) => (true, x),
+                        (Some(x), y) => (x, y),
+                    });
+                let mut guard = connection.lock();
+                let con = match guard.as_mut() {
+                    Some(con) => con,
+                    None => {
+                        return Err(mlua::Error::external(crate::base::Error::Custom(
+                            "Connection already dropped".into(),
+                        )))
+                    }
+                };
+
+                let action = match &res {
+                    Ok((true, _)) => "COMMIT",
+                    Ok((false, _)) => "ROLLBACK",
+                    Err(_) => "ROLLBACK",
+                };
+                let rollback_res = block_on(con.execute(action));
                 drop(guard);
                 this.connection = Some(connection);
-                return Err(mlua::Error::external(crate::base::Error::Sqlx(x)));
-            }
-            drop(guard);
-            let lua_con = LuaConnection::from(connection.clone());
-            let res: Result<(bool, mlua::Value), _> = func.call(lua_con.clone()).map(|v| match v {
-                (mlua::Value::Nil, x) => (true, x),
-                (mlua::Value::Boolean(x), y) => (x, y),
-                (_, y) => (true, y),
-            });
-            let mut guard = connection.lock();
-            let con = match guard.as_mut() {
-                Some(con) => con,
-                None => {
-                    return Err(mlua::Error::external(crate::base::Error::Custom(
-                        "Connection already dropped".into(),
-                    )))
+                match (res, rollback_res) {
+                    (Err(res_error), Err(rollback_error)) => Err(mlua::Error::external(
+                        crate::base::Error::DBErrorAfterHandling(rollback_error, res_error),
+                    )),
+                    (Err(res_err), _) => Err(res_err),
+                    (_, Err(x)) => Err(mlua::Error::external(crate::base::Error::Sqlx(x))),
+                    (Ok(x), Ok(_)) => Ok(x),
                 }
-            };
-
-            let action = match &res {
-                Ok((true, _)) => "COMMIT",
-                Ok((false, _)) => "ROLLBACK",
-                Err(_) => "ROLLBACK",
-            };
-            let rollback_res = block_on(con.execute(action));
-            drop(guard);
-            this.connection = Some(connection);
-            match (res, rollback_res) {
-                (Err(res_error), Err(rollback_error)) => Err(mlua::Error::external(
-                    crate::base::Error::DBErrorAfterHandling(rollback_error, res_error),
-                )),
-                (Err(res_err), _) => Err(res_err),
-                (_, Err(x)) => Err(mlua::Error::external(crate::base::Error::Sqlx(x))),
-                (Ok(x), Ok(_)) => Ok(x),
-            }
-        })
+            },
+        )
     }
 }
