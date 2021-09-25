@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::{ops::DerefMut, sync::Arc};
 
 use async_std::task::block_on;
+use either::Either;
 use futures::prelude::stream::StreamExt;
 use parking_lot::{MappedMutexGuard, Mutex};
 use sqlx::PgConnection;
@@ -19,8 +20,9 @@ use tealr::{
 
 tealr::create_union_mlua!(pub(crate) Derives(PartialEq) enum Input = String | Integer | Number | bool);
 
-type QueryParamCollection = BTreeMap<i64, Input>;
+pub(crate) type QueryParamCollection = BTreeMap<i64, Input>;
 
+use crate::bind_params::bind_params_on;
 use crate::{internal_connection_wrapper::WrappedConnection, iter::Iter, pg_row::LuaRow};
 
 fn get_lock<'a>(
@@ -37,7 +39,7 @@ fn get_lock<'a>(
 fn add_params<'b, 'a: 'b>(
     connection: &'a Arc<Mutex<Option<WrappedConnection>>>,
     sql: &'a str,
-    params: &'b QueryParamCollection,
+    params: &'b mut QueryParamCollection,
 ) -> Result<
     (
         Query<'b, Postgres, PgArguments>,
@@ -47,22 +49,27 @@ fn add_params<'b, 'a: 'b>(
 > {
     let mut v = get_lock(connection)?;
     let statement = block_on(v.prepare(sql)).map_err(mlua::Error::external)?;
-    let mut query = sqlx::query(sql);
-    let needed = statement
-        .parameters()
-        .map(|v| v.map_left(|v| v.len()).left_or_else(|v| v))
-        .unwrap_or(0);
-
-    for k in 1..=needed {
-        let v = params.get(&(k as i64));
-        query = match v {
-            Some(Input::String(x)) => query.bind(x),
-            Some(Input::Number(x)) => query.bind(x),
-            Some(Input::Integer(x)) => query.bind(x),
-            Some(Input::bool(x)) => query.bind(x),
-            None => query.bind::<Option<bool>>(None),
-        }
-    }
+    let query = sqlx::query(sql);
+    let query = bind_params_on(
+        params,
+        statement.parameters().unwrap_or(Either::Right(0)),
+        query,
+    )?;
+    // let needed = statement
+    // .parameters()
+    // .map(|v| v.map_left(|v| v.len()).left_or_else(|v| v))
+    // .unwrap_or(0);
+    //
+    // for k in 1..=needed {
+    // let v = params.get(&(k as i64));
+    // query = match v {
+    // Some(Input::String(x)) => query.bind(x),
+    // Some(Input::Number(x)) => query.bind(x),
+    // Some(Input::Integer(x)) => query.bind(x),
+    // Some(Input::bool(x)) => query.bind(x),
+    // None => query.bind::<Option<bool>>(None),
+    // }
+    // }
 
     Ok((query, v))
 }
@@ -120,7 +127,7 @@ impl<'c> LuaConnection<'c> {
     fn add_params<'b, 'a: 'b>(
         &'a self,
         sql: &'a str,
-        params: &'b QueryParamCollection,
+        params: &'b mut QueryParamCollection,
     ) -> Result<
         (
             Query<'b, Postgres, PgArguments>,
@@ -166,8 +173,8 @@ impl<'c> TealData for LuaConnection<'c> {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
         methods.add_method(
             "fetch_optional",
-            |_, this, (query, params): (String, QueryParamCollection)| {
-                let (query, mut v) = this.add_params(&query, &params)?;
+            |_, this, (query, mut params): (String, QueryParamCollection)| {
+                let (query, mut v) = this.add_params(&query, &mut params)?;
                 let x =
                     block_on(query.fetch_optional(v.deref_mut())).map_err(mlua::Error::external);
                 match x {
@@ -179,8 +186,8 @@ impl<'c> TealData for LuaConnection<'c> {
         );
         methods.add_method(
             "fetch_all",
-            |_, this, (query, params): (String, QueryParamCollection)| {
-                let (query, mut v) = this.add_params(&query, &params)?;
+            |_, this, (query, mut params): (String, QueryParamCollection)| {
+                let (query, mut v) = this.add_params(&query, &mut params)?;
 
                 let mut stream = query.fetch(v.deref_mut());
                 let mut items = Vec::new();
@@ -197,12 +204,12 @@ impl<'c> TealData for LuaConnection<'c> {
         );
         methods.add_method(
             "fetch_all_async",
-            |_, this, (query, params, chunk_count): (String, QueryParamCollection, Option<usize>)| {
+            |_, this, (query, mut params, chunk_count): (String, QueryParamCollection, Option<usize>)| {
                 let chunk_count = chunk_count.unwrap_or(1).max(1);
                 let connection = this.unwrap_connection_option()?.clone();
                 let iter = Iter::from_func(move |sender| {
                     move || {
-                        match add_params(&connection, &query, &params) {
+                        match add_params(&connection, &query, &mut params) {
                             Ok((query, mut con)) => {
                                 let mut stream = query
                                     .fetch(con.deref_mut())
@@ -240,8 +247,8 @@ impl<'c> TealData for LuaConnection<'c> {
         );
         methods.add_method(
             "execute",
-            |_, this, (query, params): (String, QueryParamCollection)| {
-                let (query, mut v) = this.add_params(&query, &params)?;
+            |_, this, (query, mut params): (String, QueryParamCollection)| {
+                let (query, mut v) = this.add_params(&query, &mut params)?;
                 let x =
                     dbg!(block_on(query.execute(v.deref_mut())).map_err(mlua::Error::external))?;
                 Ok(x.rows_affected())
@@ -249,8 +256,8 @@ impl<'c> TealData for LuaConnection<'c> {
         );
         methods.add_method(
             "fetch_one",
-            |_, this, (query, params): (String, QueryParamCollection)| {
-                let (query, mut v) = this.add_params(&query, &params)?;
+            |_, this, (query, mut params): (String, QueryParamCollection)| {
+                let (query, mut v) = this.add_params(&query, &mut params)?;
                 let x = block_on(query.fetch_one(v.deref_mut())).map_err(mlua::Error::external)?;
                 Ok(LuaRow::from(x))
             },

@@ -1397,6 +1397,8 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 [[package]]
 name = "tealr"
 version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db74e6f0b9ce2ebb0171a6cfd678e7f98ac85a204b735efc3934cc1f6817ee23"
 dependencies = [
  "bstr",
  "mlua",
@@ -1406,6 +1408,8 @@ dependencies = [
 [[package]]
 name = "tealr_derive"
 version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8738d67ea1aad5fa3554487634b8f4bb9ec2cf442f47b61d5fb786626bb87bdf"
 dependencies = [
  "proc-macro2",
  "quote",

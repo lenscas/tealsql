@@ -43,11 +43,11 @@ impl Display for Error {
 }
 
 #[derive(Clone, tealr::MluaUserData, TypeName)]
-pub(crate) struct Base {}
+pub struct Base {}
 
 impl TealData for Base {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
-        methods.add_function("connect_poll", |_, connection_string: String| {
+        methods.add_function("connect_pool", |_, connection_string: String| {
             let res = async {
                 let pool = PgPool::connect(&connection_string).await?;
                 Ok(crate::pool::Pool::from(pool))

@@ -1,9 +1,12 @@
 mod base;
+mod bind_params;
 mod connection;
 mod internal_connection_wrapper;
 mod iter;
 mod pg_row;
 mod pool;
+
+pub use base::Base;
 
 use std::string::FromUtf8Error;
 
@@ -13,8 +16,8 @@ use tealr::{
 };
 
 #[tealr::mlu::mlua::lua_module]
-fn libpgteal(_: &Lua) -> LuaResult<base::Base> {
-    let x = base::Base {};
+fn libpgteal(_: &Lua) -> LuaResult<Base> {
+    let x = Base {};
     Ok(x)
 }
 

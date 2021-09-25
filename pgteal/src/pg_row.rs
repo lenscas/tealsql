@@ -57,19 +57,22 @@ impl From<PgRow> for LuaRow {
         LuaRow { row }
     }
 }
-
 fn decode_value(value: PgValue, l: &mlua::Lua) -> mlua::Result<mlua::Value<'_>> {
     let x = value.type_info();
     let name = x.name();
+    println!("{}", name);
     match name {
         "BOOL" => value.try_decode::<bool>().map(c(l)),
-        "CHAR" | "SMALLINT" | "SMALLSERIAL" | "INT2" | "INT" | "SERIAL" | "INT4" | "BIGINT"
-        | "BIGSERIAL" | "INT8" => value.try_decode::<i64>().map(c(l)),
-        "REAL" | "FLOAT4" | "DOUBLE PRECISION" | "FLOATS" => value.try_decode::<f64>().map(c(l)),
-        "VARCHAR" | "CHAR(N)" | "TEXT" | "NAME" | "JSON" | "JSONB" => {
+        "\"CHAR\"" => value.try_decode::<i8>().map(c(l)),
+        "SMALLINT" | "SMALLSERIAL" | "INT2" => value.try_decode::<i16>().map(c(l)),
+        "INT" | "SERIAL" | "INT4" => value.try_decode::<i32>().map(c(l)),
+        "BIGINT" | "BIGSERIAL" | "INT8" => value.try_decode::<i64>().map(c(l)),
+        "REAL" | "FLOAT4" => value.try_decode::<f32>().map(c(l)),
+        "DOUBLE PRECISION" | "FLOATS" => value.try_decode::<f64>().map(c(l)),
+        "VARCHAR" | "CHAR" | "TEXT" | "NAME" | "JSON" | "JSONB" => {
             value.try_decode::<String>().map(c(l))
         }
-        "BYTEA" => value.try_decode::<bool>().map(c(l)),
+        "BYTEA" => value.try_decode::<Vec<u8>>().map(c(l)),
         x => panic!("unsupported typename: {}", x),
     }
     .map_err(mlua::Error::external)?
