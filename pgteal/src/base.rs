@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use async_std::task::block_on;
 use mlua::{LuaSerdeExt, Value::Nil};
-use sqlx::{Connection, PgPool};
+use sqlx::{postgres::types::PgInterval, Connection, PgPool};
 use tealr::{
     mlu::{mlua, TealData},
     TypeName,
@@ -72,6 +72,16 @@ impl TealData for Base {
             } else {
                 Ok(Nil)
             }
-        })
+        });
+        methods.add_function(
+            "interval",
+            |_, (months, days, microseconds): (Option<i32>, Option<i32>, Option<i64>)| {
+                Ok(shared::Interval::from(PgInterval {
+                    months: months.unwrap_or_default(),
+                    days: days.unwrap_or_default(),
+                    microseconds: microseconds.unwrap_or_default(),
+                }))
+            },
+        )
     }
 }

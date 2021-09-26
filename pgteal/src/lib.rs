@@ -26,7 +26,9 @@ pub fn generate_types() -> Result<String, FromUtf8Error> {
         .process_type_inline::<base::Base>(Direction::ToLua)
         .process_type::<crate::pool::Pool>(Direction::ToLua)
         .process_type::<crate::connection::LuaConnection>(Direction::ToLua)
-        .process_type::<crate::iter::Iter>(Direction::ToLua);
+        .process_type::<crate::iter::Iter>(Direction::ToLua)
+        .process_type::<shared::Interval>(Direction::ToLua);
+
     types.generate_local("libpgteal")
 }
 tealr::create_generic_mlua!(pub(crate) Res);

@@ -233,7 +233,7 @@ pub(crate) fn write_to_file(
     std::fs::create_dir_all(path.parent().unwrap())?;
 
     let to_write = format!(
-        "local Connection = require(\"libpgteal\").Connection\n{}\nreturn {{{}}}",
+        "local libpgteal = require(\"libpgteal\")\nlocal Connection = libpgteal.Connection\n{}\nreturn {{{}}}",
         glued_types, modules
     );
     std::fs::write(path, to_write)?;

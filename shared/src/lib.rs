@@ -1,9 +1,13 @@
+mod wrapper_types;
 use std::convert::TryInto;
 
 use serde::de::DeserializeOwned;
 use sqlx_core::{
     encode::Encode,
-    postgres::{types::PgMoney, PgArguments, PgTypeInfo, PgValue, Postgres},
+    postgres::{
+        types::{PgInterval, PgMoney},
+        PgArguments, PgTypeInfo, PgValue, Postgres,
+    },
     query::Query,
     type_info::TypeInfo,
     types::Type,
@@ -11,6 +15,8 @@ use sqlx_core::{
 };
 use tealr::mlu::mlua::{self, Integer, LuaSerdeExt, Number, ToLua};
 use uuid::Uuid;
+
+pub use wrapper_types::Interval;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Table(pub serde_json::Value);
@@ -49,6 +55,7 @@ pub enum TypeInformation {
     MONEY,
     UUID,
     JSON,
+    INTERVAL,
     Unknown,
     BOOLArray,
     CHARINTArray,
@@ -62,6 +69,7 @@ pub enum TypeInformation {
     MONEYArray,
     UUIDArray,
     JSONArray,
+    INTERVALArray,
 }
 
 fn c<'lua, X: ToLua<'lua>>(lua: &'lua mlua::Lua) -> impl Fn(X) -> mlua::Result<mlua::Value<'lua>> {
@@ -79,7 +87,6 @@ where
     match value.try_into() {
         Ok(x) => Ok(query.bind(x)),
         Err(_) => {
-            println!("Got here?");
             let from = match T::get_type_name(tealr::Direction::FromLua) {
                 std::borrow::Cow::Borrowed(x) => x,
                 std::borrow::Cow::Owned(_) => "unknown",
@@ -128,6 +135,7 @@ impl TypeInformation {
             "MONEY" => Self::MONEY,
             "UUID" => Self::UUID,
             "JSON" | "JSONB" => Self::JSON,
+            "INTERVAL" => Self::INTERVAL,
             "BOOL[]" => Self::BOOLArray,
             "\"CHAR\"[]" => Self::CHARINTArray,
             "SMALLINT[]" | "SMALLSERIAL[]" | "INT2[]" => Self::SMALLINTArray,
@@ -140,6 +148,7 @@ impl TypeInformation {
             "MONEY[]" => Self::MONEYArray,
             "UUID[]" => Self::UUIDArray,
             "JSON[]" | "JSONB[]" => Self::JSONArray,
+            "INTERVAL[]" => Self::INTERVALArray,
             _ => return None,
         };
         Some(v)
@@ -158,6 +167,7 @@ impl TypeInformation {
             TypeInformation::MONEY => "integer".to_string(),
             TypeInformation::UUID => "string".to_string(),
             TypeInformation::JSON => "any".to_string(),
+            TypeInformation::INTERVAL => "libpgteal.Interval".to_string(),
             TypeInformation::Unknown => "any".to_string(),
             TypeInformation::BOOLArray => format!("{{{}}}", Self::BOOL.as_lua()),
             TypeInformation::CHARINTArray => format!("{{{}}}", Self::CHARINT.as_lua()),
@@ -171,6 +181,7 @@ impl TypeInformation {
             TypeInformation::MONEYArray => format!("{{{}}}", Self::MONEY.as_lua()),
             TypeInformation::UUIDArray => format!("{{{}}}", Self::UUID.as_lua()),
             TypeInformation::JSONArray => format!("{{{}}}", Self::JSON.as_lua()),
+            TypeInformation::INTERVALArray => format!("{{{}}}", Self::INTERVAL.as_lua()),
         }
     }
     pub fn decode(
@@ -198,6 +209,10 @@ impl TypeInformation {
             TypeInformation::VARCHAR => value.try_decode::<String>().map(c(l)),
             TypeInformation::BYTEA => value.try_decode::<Vec<u8>>().map(c(l)),
             TypeInformation::MONEY => value.try_decode::<PgMoney>().map(|v| v.0).map(c(l)),
+            TypeInformation::INTERVAL => value
+                .try_decode::<PgInterval>()
+                .map(Interval::from)
+                .map(c(l)),
             TypeInformation::UUID => value
                 .try_decode::<uuid::Uuid>()
                 .map(|v| v.to_string())
@@ -216,6 +231,14 @@ impl TypeInformation {
             TypeInformation::DOUBLEArray => value.try_decode::<Vec<f64>>().map(c(l)),
             TypeInformation::VARCHARArray => value.try_decode::<Vec<String>>().map(c(l)),
             TypeInformation::BYTEAArray => value.try_decode::<Vec<Vec<u8>>>().map(c(l)),
+
+            TypeInformation::INTERVALArray => {
+                return Err(tealr::mlu::mlua::Error::ToLuaConversionError {
+                    from: "INTERVAL[]",
+                    to: "{Interval}",
+                    message: Some(String::from("At the moment INTERVAL[]'s can't be decoded")),
+                })
+            }
             TypeInformation::MONEYArray => value
                 .try_decode::<Vec<PgMoney>>()
                 .map(|v| v.into_iter().map(|v| v.0).collect::<Vec<_>>())
@@ -243,44 +266,52 @@ impl TypeInformation {
         info: Option<&PgTypeInfo>,
         mut query: Query<'a, Postgres, PgArguments>,
     ) -> Result<Query<'a, Postgres, PgArguments>, mlua::Error> {
-        let info = info.map(TypeInfo::name);
-        let (param_type, info) = dbg!((param_type, info));
+        let info = TypeInformation::parse_maybe_str(info.map(TypeInfo::name)).ok_or(
+            tealr::mlu::mlua::Error::FromLuaConversionError {
+                from: "unknown",
+                to: "unknown",
+                message: Some(format!(
+                    "Don't know how to convert to {}",
+                    info.map(|v| v.name()).unwrap_or("unknown")
+                )),
+            },
+        )?;
         query = match (param_type, info) {
-            (Some(Input::bool(x)), Some("BOOL") | None) => query.bind(x),
-            (Some(Input::Integer(x)), Some("\"CHAR\"")) => try_bind::<i8, _>(query, x)?,
-            (Some(Input::Integer(x)), Some("SMALLINT" | "SMALLSERIAL" | "INT2")) => {
-                try_bind::<i16, _>(query, x)?
-            }
-            (Some(Input::Integer(x)), Some("INT" | "SERIAL" | "INT4")) => {
-                try_bind::<i32, _>(query, x)?
-            }
-            (Some(Input::Integer(x)), Some("BIGINT" | "BIGSERIAL" | "INT8") | None) => {
+            (Some(Input::bool(x)), TypeInformation::BOOL | TypeInformation::Unknown) => {
                 query.bind(x)
             }
-            (Some(Input::Number(x)), Some("REAL" | "FLOAT4")) => query.bind(x as f32),
-            (Some(Input::Number(x)), Some("DOUBLE PRECISION" | "FLOATS") | None) => query.bind(x),
-            (Some(Input::String(x)), Some("VARCHAR" | "CHAR" | "TEXT" | "NAME") | None) => {
+            (Some(Input::Integer(x)), TypeInformation::CHARINT) => try_bind::<i8, _>(query, x)?,
+            (Some(Input::Integer(x)), TypeInformation::SMALLINT) => try_bind::<i16, _>(query, x)?,
+            (Some(Input::Integer(x)), TypeInformation::INT) => try_bind::<i32, _>(query, x)?,
+            (Some(Input::Integer(x)), TypeInformation::BIGINT | TypeInformation::Unknown) => {
                 query.bind(x)
             }
-            (Some(Input::Table(x)), Some("JSON" | "JSONB") | None) => query.bind(x.0),
-            (Some(Input::Integer(x)), Some("MONEY")) => query.bind(PgMoney(x)),
+            (Some(Input::Number(x)), TypeInformation::REAL) => query.bind(x as f32),
+            (Some(Input::Number(x)), TypeInformation::DOUBLE | TypeInformation::Unknown) => {
+                query.bind(x)
+            }
+            (Some(Input::String(x)), TypeInformation::VARCHAR | TypeInformation::Unknown) => {
+                query.bind(x)
+            }
+            (Some(Input::Table(x)), TypeInformation::JSON | TypeInformation::Unknown) => {
+                query.bind(x.0)
+            }
+            (Some(Input::Integer(x)), TypeInformation::MONEY) => query.bind(PgMoney(x)),
             (None, _) => query.bind::<Option<bool>>(None),
-            (Some(Input::String(x)), Some("UUID")) => Uuid::parse_str(&x)
+            (Some(Input::String(x)), TypeInformation::UUID) => Uuid::parse_str(&x)
                 .map_err(mlua::Error::external)
                 .map(|v| query.bind(v))?,
-            (Some(Input::Table(data)), Some(info)) => match info {
-                "BOOL[]" => bind_array_of::<bool>(query, data)?,
-                "\"CHAR\"[]" => bind_array_of::<i8>(query, data)?,
-                "SMALLINT[]" | "SMALLSERIAL[]" | "INT2[]" => bind_array_of::<i16>(query, data)?,
-                "INT[]" | "SERIAL[]" | "INT4[]" => bind_array_of::<i32>(query, data)?,
-                "BIGINT[]" | "BIGSERIAL[]" | "INT8[]" => bind_array_of::<i64>(query, data)?,
-                "REAL[]" | "FLOAT[]" => bind_array_of::<f32>(query, data)?,
-                "DOUBLE PRECISION[]" | "FLOATS[]" => bind_array_of::<f64>(query, data)?,
-                "VARCHAR[]" | "CHAR[]" | "TEXT[]" | "NAME[]" => {
-                    bind_array_of::<String>(query, data)?
-                }
-                "JSON[]" | "JSONB[]" => bind_array_of::<serde_json::Value>(query, data)?,
-                "MONEY[]" => {
+            (Some(Input::Table(data)), info) => match info {
+                TypeInformation::BOOLArray => bind_array_of::<bool>(query, data)?,
+                TypeInformation::CHARINTArray => bind_array_of::<i8>(query, data)?,
+                TypeInformation::SMALLINTArray => bind_array_of::<i16>(query, data)?,
+                TypeInformation::INTArray => bind_array_of::<i32>(query, data)?,
+                TypeInformation::BIGINTArray => bind_array_of::<i64>(query, data)?,
+                TypeInformation::REALArray => bind_array_of::<f32>(query, data)?,
+                TypeInformation::DOUBLEArray => bind_array_of::<f64>(query, data)?,
+                TypeInformation::VARCHARArray => bind_array_of::<String>(query, data)?,
+                TypeInformation::JSONArray => bind_array_of::<serde_json::Value>(query, data)?,
+                TypeInformation::MONEYArray => {
                     let res = serde_json::from_value::<Vec<i64>>(data.0)
                         .map_err(mlua::Error::external)?
                         .into_iter()
@@ -296,7 +327,7 @@ impl TypeInformation {
                     })
                 }
             },
-            (_, Some(_)) => {
+            (_, _) => {
                 return Err(mlua::Error::FromLuaConversionError {
                     from: "unknown",
                     to: "unknown",
