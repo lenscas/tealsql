@@ -13,7 +13,10 @@ use sqlx_core::{
     types::Type,
     value::Value,
 };
-use tealr::mlu::mlua::{self, Integer, LuaSerdeExt, Number, ToLua};
+use tealr::{
+    mlu::mlua::{self, FromLua, Integer, LuaSerdeExt, Number, ToLua},
+    TypeName,
+};
 use uuid::Uuid;
 
 pub use wrapper_types::Interval;
@@ -25,7 +28,24 @@ impl<'lua> mlua::FromLua<'lua> for Table {
         val: mlua::Value<'lua>,
         lua: &'lua mlua::Lua,
     ) -> std::result::Result<Self, mlua::Error> {
-        let v = LuaSerdeExt::from_value::<serde_json::Value>(lua, val).map_err(|v| dbg!(v))?;
+        if let mlua::Value::Nil
+        | mlua::Value::Boolean(_)
+        | mlua::Value::LightUserData(_)
+        | mlua::Value::Integer(_)
+        | mlua::Value::Number(_)
+        | mlua::Value::String(_)
+        | mlua::Value::Function(_)
+        | mlua::Value::Thread(_)
+        | mlua::Value::UserData(_)
+        | mlua::Value::Error(_) = val
+        {
+            return Err(mlua::Error::FromLuaConversionError {
+                from: val.type_name(),
+                to: "table",
+                message: None,
+            });
+        }
+        let v = LuaSerdeExt::from_value::<serde_json::Value>(lua, val)?;
         Ok(Self(v))
     }
 }
@@ -40,7 +60,41 @@ impl tealr::TypeName for Table {
     }
 }
 
-tealr::create_union_mlua!(pub Derives(PartialEq,Debug) enum Input = String | Table  | Integer | Number | bool);
+#[derive(Clone, PartialEq, Debug)]
+pub struct Bool(pub bool);
+impl<'lua> ToLua<'lua> for Bool {
+    fn to_lua(self, lua: &'lua mlua::Lua) -> mlua::Result<mlua::Value<'lua>> {
+        self.0.to_lua(lua)
+    }
+}
+impl TypeName for Bool {
+    fn get_type_name(dir: tealr::Direction) -> std::borrow::Cow<'static, str> {
+        bool::get_type_name(dir)
+    }
+
+    fn get_type_kind() -> tealr::KindOfType {
+        bool::get_type_kind()
+    }
+
+    fn collect_children(x: &mut Vec<tealr::TealType>) {
+        bool::collect_children(x)
+    }
+}
+impl<'lua> FromLua<'lua> for Bool {
+    fn from_lua(lua_value: mlua::Value<'lua>, _: &'lua mlua::Lua) -> mlua::Result<Self> {
+        if let mlua::Value::Boolean(x) = lua_value {
+            Ok(Bool(x))
+        } else {
+            Err(mlua::Error::FromLuaConversionError {
+                from: lua_value.type_name(),
+                to: "bool",
+                message: None,
+            })
+        }
+    }
+}
+
+tealr::create_union_mlua!(pub Derives(PartialEq,Debug) enum Input =  Bool | Integer | Number |  Table | String );
 
 pub enum TypeInformation {
     BOOL,
@@ -219,7 +273,6 @@ impl TypeInformation {
                 .map(c(l)),
             TypeInformation::JSON => value
                 .try_decode::<serde_json::Value>()
-                .map(|v| dbg!(v))
                 .map(|v| l.to_value_with(&v, Default::default())),
 
             TypeInformation::BOOLArray => value.try_decode::<Vec<bool>>().map(c(l)),
@@ -249,7 +302,6 @@ impl TypeInformation {
                 .map(c(l)),
             TypeInformation::JSONArray => value
                 .try_decode::<Vec<serde_json::Value>>()
-                .map(|v| dbg!(v))
                 .map(|v| {
                     v.iter()
                         .map(|v| l.to_value(v))
@@ -277,8 +329,8 @@ impl TypeInformation {
             },
         )?;
         query = match (param_type, info) {
-            (Some(Input::bool(x)), TypeInformation::BOOL | TypeInformation::Unknown) => {
-                query.bind(x)
+            (Some(Input::Bool(x)), TypeInformation::BOOL | TypeInformation::Unknown) => {
+                query.bind(x.0)
             }
             (Some(Input::Integer(x)), TypeInformation::CHARINT) => try_bind::<i8, _>(query, x)?,
             (Some(Input::Integer(x)), TypeInformation::SMALLINT) => try_bind::<i16, _>(query, x)?,

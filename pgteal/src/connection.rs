@@ -48,21 +48,6 @@ fn add_params<'b, 'a: 'b>(
         statement.parameters().unwrap_or(Either::Right(0)),
         query,
     )?;
-    // let needed = statement
-    // .parameters()
-    // .map(|v| v.map_left(|v| v.len()).left_or_else(|v| v))
-    // .unwrap_or(0);
-    //
-    // for k in 1..=needed {
-    // let v = params.get(&(k as i64));
-    // query = match v {
-    // Some(Input::String(x)) => query.bind(x),
-    // Some(Input::Number(x)) => query.bind(x),
-    // Some(Input::Integer(x)) => query.bind(x),
-    // Some(Input::bool(x)) => query.bind(x),
-    // None => query.bind::<Option<bool>>(None),
-    // }
-    // }
 
     Ok((query, v))
 }
@@ -130,6 +115,29 @@ impl<'c> LuaConnection<'c> {
     > {
         add_params(self.unwrap_connection_option()?, sql, params)
     }
+    fn execute(&self, query: String, mut params: QueryParamCollection) -> mlua::Result<u64> {
+        let (query, mut v) = self.add_params(&query, &mut params)?;
+        let x = block_on(query.execute(v.deref_mut())).map_err(mlua::Error::external)?;
+        Ok(x.rows_affected())
+    }
+    fn extract_lua_to_table_fields(
+        values: BTreeMap<String, Input>,
+        continue_from: i64,
+    ) -> (Vec<String>, Vec<i64>, QueryParamCollection) {
+        let x = values.into_iter().collect::<Vec<_>>();
+        let keys = x
+            .iter()
+            .map(|(key, _)| format!("\"{}\"", key))
+            .collect::<Vec<_>>();
+        let mut markers = Vec::new();
+        let values = x
+            .into_iter()
+            .enumerate()
+            .map(|(key, (_, x))| (((key + 1) as i64) + continue_from, x))
+            .inspect(|(key, _)| markers.push(*key))
+            .collect::<QueryParamCollection>();
+        (keys, markers, values)
+    }
 }
 
 impl<'c> From<PoolConnection<Postgres>> for LuaConnection<'c> {
@@ -173,7 +181,7 @@ impl<'c> TealData for LuaConnection<'c> {
                 match x {
                     Ok(Some(x)) => Ok(Some(LuaRow::from(x))),
                     Ok(None) => Ok(None),
-                    Err(x) => Err(dbg!(x)),
+                    Err(x) => Err(x),
                 }
             },
         );
@@ -240,12 +248,7 @@ impl<'c> TealData for LuaConnection<'c> {
         );
         methods.add_method(
             "execute",
-            |_, this, (query, mut params): (String, QueryParamCollection)| {
-                let (query, mut v) = this.add_params(&query, &mut params)?;
-                let x =
-                    dbg!(block_on(query.execute(v.deref_mut())).map_err(mlua::Error::external))?;
-                Ok(x.rows_affected())
-            },
+            |_, this, (query, params): (String, QueryParamCollection)| this.execute(query, params),
         );
         methods.add_method(
             "fetch_one",
@@ -311,6 +314,78 @@ impl<'c> TealData for LuaConnection<'c> {
                     (_, Err(x)) => Err(mlua::Error::external(crate::base::Error::Sqlx(x))),
                     (Ok(x), Ok(_)) => Ok(x),
                 }
+            },
+        );
+        methods.add_method(
+            "insert",
+            |_, this, (name, values): (String, BTreeMap<String, Input>)| {
+                let (keys, markers, values) = Self::extract_lua_to_table_fields(values, 0);
+                let sql = format!(
+                    "INSERT INTO \"{}\" ({}) VALUES ({})",
+                    name,
+                    keys.join(","),
+                    markers
+                        .into_iter()
+                        .map(|v| format!("${}", v))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                );
+                this.execute(sql, values)
+            },
+        );
+        methods.add_method(
+            "update",
+            |_,
+             this,
+             (name, old_values, new_values): (
+                String,
+                BTreeMap<String, Input>,
+                BTreeMap<String, Input>,
+            )| {
+                let (old_keys, old_markers, mut old_values) =
+                    Self::extract_lua_to_table_fields(old_values, 0);
+                let (new_keys, new_markers, mut new_values) =
+                    Self::extract_lua_to_table_fields(new_values, (old_markers.len()) as i64);
+                let sql = format!(
+                    "UPDATE \"{}\"
+                    SET {}
+                WHERE {};
+                ",
+                    name,
+                    new_keys
+                        .into_iter()
+                        .zip(new_markers.iter())
+                        .map(|(key, marker)| format!("{} = ${}", key, marker))
+                        .collect::<Vec<_>>()
+                        .join(","),
+                    old_keys
+                        .into_iter()
+                        .zip(old_markers.iter())
+                        .map(|(key, marker)| format!("{} = ${}", key, marker))
+                        .collect::<Vec<_>>()
+                        .join("\n AND ")
+                );
+                new_values.append(&mut old_values);
+                this.execute(sql, new_values)
+            },
+        );
+        methods.add_method(
+            "delete",
+            |_, this, (name, check_on): (String, BTreeMap<String, Input>)| {
+                let (keys, markers, values) = Self::extract_lua_to_table_fields(check_on, 0);
+                let where_parts = keys
+                    .into_iter()
+                    .zip(markers.into_iter())
+                    .map(|(key, marker)| format!("{} = ${}", key, marker))
+                    .collect::<Vec<_>>()
+                    .join("\n AND ");
+                let sql = format!(
+                    "DELETE FROM \"{}\"
+                WHERE {};
+                ",
+                    name, where_parts
+                );
+                this.execute(sql, values)
             },
         )
     }
