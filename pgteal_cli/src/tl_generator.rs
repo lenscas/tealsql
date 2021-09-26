@@ -2,6 +2,7 @@ use std::{convert::TryInto, ffi::OsString, fmt::Display, path::Path};
 
 use inflector::Inflector;
 use sqlx::{postgres::PgTypeInfo, Column, Executor, Pool, Postgres, TypeInfo};
+use tealr::TypeName;
 
 use crate::sql_parser::ParsedSql;
 
@@ -137,27 +138,20 @@ fn make_function(
 		{}
 		local query_params = {{}}
 		for k,v in ipairs(param_order) do
-			query_params[k] = (params as {{string:any}})[v]
+			query_params[k] = (params as {{string:{}}})[v]
 		end
 		return connection:{}(
 			[[{}]],
 			query_params
 		) as {}
 		end",
-        function_header, params, function_type, query.sql, return_name
+        function_header,
+        params,
+        shared::Input::get_type_name(tealr::Direction::ToLua),
+        function_type,
+        query.sql,
+        return_name
     )
-}
-
-pub fn sql_type_to_teal(type_name: &str) -> &'static str {
-    match type_name {
-        "BOOL" => "boolean",
-        "CHAR" | "SMALLINT" | "SMALLSERIAL" | "INT2" | "INT" | "SERIAL" | "INT4" | "BIGINT"
-        | "BIGSERIAL" | "INT8" => "integer",
-        "REAL" | "FLOAT4" | "DOUBLE PRECISION" | "FLOATS" => "number",
-        "VARCHAR" | "CHAR(N)" | "TEXT" | "NAME" | "JSON" | "JSONB" => "string",
-        "BYTEA" => "Array<integer>",
-        x => panic!("unsupported typename: {}", x),
-    }
 }
 
 #[derive(Clone)]
@@ -179,7 +173,9 @@ fn create_struct_from_db<'a, 'b, X: Iterator<Item = (&'a str, &'b [PgTypeInfo])>
                 key,
                 teal_type
                     .iter()
-                    .map(|v| sql_type_to_teal(v.name()))
+                    .map(|v| v.name())
+                    .filter_map(shared::TypeInformation::parse_str)
+                    .map(|v| v.as_lua())
                     .collect::<Vec<_>>()
                     .join(" | ")
             )

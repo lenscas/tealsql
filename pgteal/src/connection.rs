@@ -5,20 +5,13 @@ use async_std::task::block_on;
 use either::Either;
 use futures::prelude::stream::StreamExt;
 use parking_lot::{MappedMutexGuard, Mutex};
+use shared::Input;
 use sqlx::PgConnection;
 use sqlx::{
     pool::PoolConnection, postgres::PgArguments, query::Query, Executor, Postgres, Statement,
 };
 use tealr::mlu::mlua;
-use tealr::{
-    mlu::{
-        mlua::{Integer, Number},
-        TealData,
-    },
-    TypeName,
-};
-
-tealr::create_union_mlua!(pub(crate) Derives(PartialEq) enum Input = String | Integer | Number | bool);
+use tealr::{mlu::TealData, TypeName};
 
 pub(crate) type QueryParamCollection = BTreeMap<i64, Input>;
 

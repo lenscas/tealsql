@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use async_std::task::block_on;
+use mlua::{LuaSerdeExt, Value::Nil};
 use sqlx::{Connection, PgPool};
 use tealr::{
     mlu::{mlua, TealData},
@@ -63,6 +64,14 @@ impl TealData for Base {
             let res =func.call(con.clone());
             con.drop_con()?;
             res
+        });
+        methods.add_function("nul", |lua, ()| Ok(lua.null()));
+        methods.add_meta_function(mlua::MetaMethod::Index, |lua, string: String| {
+            if string == "null" {
+                Ok(lua.null())
+            } else {
+                Ok(Nil)
+            }
         })
     }
 }

@@ -1,11 +1,7 @@
-/* @name= test */
-SELECT id,user_id
-FROM characters;
-/* @name= test2 */
-SELECT id,user_id
-FROM characters
-WHERE id = :id;
-/* @name= test3 */
-SELECT id,user_id
-FROM characters
-WHERE id = :id2;
+/* @name= get_all */
+SELECT *
+FROM everything;
+/* @name= get_by_string */
+SELECT *
+FROM everything
+WHERE "varchar1" = :getBy;

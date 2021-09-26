@@ -2,14 +2,12 @@
 	"cSpell.words": [
 		"BIGSERIAL",
 		"BYTEA",
+		"CHARINT",
 		"Deque",
-		"JSONB",
-		"Lenscas",
-		"SMALLINT",
-		"SMALLSERIAL",
-		"VARCHAR",
 		"inflector",
 		"ipairs",
+		"JSONB",
+		"Lenscas",
 		"libpgteal",
 		"mlua",
 		"pgteal",
@@ -17,9 +15,12 @@
 		"postgres",
 		"postgresql",
 		"replacen",
+		"SMALLINT",
+		"SMALLSERIAL",
 		"sqlx",
 		"tealr",
 		"tealsql",
-		"vals"
+		"vals",
+		"VARCHAR"
 	]
 }

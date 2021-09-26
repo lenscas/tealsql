@@ -1,14 +1,8 @@
 use std::borrow::Cow;
 
-use crate::connection::Input;
-use sqlx::{
-    postgres::{PgRow, PgValue},
-    Column, Row, TypeInfo, Value, ValueRef,
-};
-use tealr::{
-    mlu::{mlua, mlua::ToLua},
-    TypeName,
-};
+use shared::Input;
+use sqlx::{postgres::PgRow, Column, Row, ValueRef};
+use tealr::{mlu::mlua, TypeName};
 
 pub(crate) struct LuaRow {
     row: PgRow,
@@ -31,7 +25,7 @@ impl<'lua> mlua::ToLua<'lua> for LuaRow {
                         if x.is_null() {
                             mlua::Nil
                         } else {
-                            decode_value(ValueRef::to_owned(&x), lua)?
+                            shared::TypeInformation::decode(ValueRef::to_owned(&x), lua)?
                         }
                     }
                     Err(x) => return Err(mlua::Error::external(x)),
@@ -48,32 +42,8 @@ impl<'lua> mlua::ToLua<'lua> for LuaRow {
     }
 }
 
-fn c<'lua, X: ToLua<'lua>>(lua: &'lua mlua::Lua) -> impl Fn(X) -> mlua::Result<mlua::Value<'lua>> {
-    move |x| x.to_lua(lua)
-}
-
 impl From<PgRow> for LuaRow {
     fn from(row: PgRow) -> Self {
         LuaRow { row }
     }
-}
-fn decode_value(value: PgValue, l: &mlua::Lua) -> mlua::Result<mlua::Value<'_>> {
-    let x = value.type_info();
-    let name = x.name();
-    println!("{}", name);
-    match name {
-        "BOOL" => value.try_decode::<bool>().map(c(l)),
-        "\"CHAR\"" => value.try_decode::<i8>().map(c(l)),
-        "SMALLINT" | "SMALLSERIAL" | "INT2" => value.try_decode::<i16>().map(c(l)),
-        "INT" | "SERIAL" | "INT4" => value.try_decode::<i32>().map(c(l)),
-        "BIGINT" | "BIGSERIAL" | "INT8" => value.try_decode::<i64>().map(c(l)),
-        "REAL" | "FLOAT4" => value.try_decode::<f32>().map(c(l)),
-        "DOUBLE PRECISION" | "FLOATS" => value.try_decode::<f64>().map(c(l)),
-        "VARCHAR" | "CHAR" | "TEXT" | "NAME" | "JSON" | "JSONB" => {
-            value.try_decode::<String>().map(c(l))
-        }
-        "BYTEA" => value.try_decode::<Vec<u8>>().map(c(l)),
-        x => panic!("unsupported typename: {}", x),
-    }
-    .map_err(mlua::Error::external)?
 }
