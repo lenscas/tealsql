@@ -971,7 +971,7 @@ dependencies = [
  "serde_json",
  "shared",
  "sqlx",
- "tealr",
+ "tealr 0.7.0 (git+https://github.com/lenscas/tealr)",
  "uuid",
 ]
 
@@ -985,7 +985,7 @@ dependencies = [
  "glob",
  "shared",
  "sqlx",
- "tealr",
+ "tealr 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1252,7 +1252,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx-core",
- "tealr",
+ "tealr 0.7.0 (git+https://github.com/lenscas/tealr)",
  "uuid",
 ]
 
@@ -1459,7 +1459,17 @@ checksum = "db74e6f0b9ce2ebb0171a6cfd678e7f98ac85a204b735efc3934cc1f6817ee23"
 dependencies = [
  "bstr",
  "mlua",
- "tealr_derive",
+ "tealr_derive 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "tealr"
+version = "0.7.0"
+source = "git+https://github.com/lenscas/tealr#1e295a823f9a3e215a3af21ac97e6f7e55ae7937"
+dependencies = [
+ "bstr",
+ "mlua",
+ "tealr_derive 0.6.0 (git+https://github.com/lenscas/tealr)",
 ]
 
 [[package]]
@@ -1467,6 +1477,16 @@ name = "tealr_derive"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8738d67ea1aad5fa3554487634b8f4bb9ec2cf442f47b61d5fb786626bb87bdf"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "tealr_derive"
+version = "0.6.0"
+source = "git+https://github.com/lenscas/tealr#1e295a823f9a3e215a3af21ac97e6f7e55ae7937"
 dependencies = [
  "proc-macro2",
  "quote",

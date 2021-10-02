@@ -172,6 +172,12 @@ impl<'c> From<sqlx::PgConnection> for LuaConnection<'c> {
 
 impl<'c> TealData for LuaConnection<'c> {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
+        methods.document("Fetches 1 or 0 results from the database");
+        methods.document("Params:");
+        methods.document("query: The query string that needs to be executed");
+        methods.document(
+            "params: An array (table) containing the parameters that this function needs",
+        );
         methods.add_method(
             "fetch_optional",
             |_, this, (query, mut params): (String, QueryParamCollection)| {
@@ -184,6 +190,12 @@ impl<'c> TealData for LuaConnection<'c> {
                     Err(x) => Err(x),
                 }
             },
+        );
+        methods.document("Fetches all results into a table");
+        methods.document("Params:");
+        methods.document("query: The query string that needs to be executed");
+        methods.document(
+            "params: An array (table) containing the parameters that this function needs",
         );
         methods.add_method(
             "fetch_all",
@@ -203,6 +215,13 @@ impl<'c> TealData for LuaConnection<'c> {
                 Ok(items)
             },
         );
+        methods.document("Runs a thread in the background that fetches all results. Allowing you to consume the results in batches, or do other things while the query is being executed");
+        methods.document("Params:");
+        methods.document("query: The query string that needs to be executed");
+        methods.document(
+            "params: An array (table) containing the parameters that this function needs",
+        );
+        methods.document("chunk_count: How big the batches are that will be returned from the background thread to the main one. Higher batch count may improve performance");
         methods.add_method(
             "fetch_all_async",
             |_, this, (query, mut params, chunk_count): (String, QueryParamCollection, Option<usize>)| {
@@ -246,9 +265,20 @@ impl<'c> TealData for LuaConnection<'c> {
                 Ok(iter)
             },
         );
+        methods.document("Fetches exactly 1 value from the database.");
+        methods.document("Params:");
+        methods.document("query: The query string that needs to be executed");
+        methods.document(
+            "params: An array (table) containing the parameters that this function needs",
+        );
         methods.add_method(
             "execute",
             |_, this, (query, params): (String, QueryParamCollection)| this.execute(query, params),
+        );
+        methods.document("Params:");
+        methods.document("query: The query string that needs to be executed");
+        methods.document(
+            "params: An array (table) containing the parameters that this function needs",
         );
         methods.add_method(
             "fetch_one",
@@ -258,6 +288,16 @@ impl<'c> TealData for LuaConnection<'c> {
                 Ok(LuaRow::from(x))
             },
         );
+        methods.document("Starts a new transaction.");
+        methods.document("Params:");
+        methods.document(
+            "func: The function that will be executed after the transaction has been made.",
+        );
+        methods.document("This function can return 2 values, the first is a boolean that determines if the transaction should be committed or not.");
+        methods.document("The second can be of any type and will be returned as is");
+        methods.document("After this function is executed the transaction will either be committed or rolled back.");
+        methods.document("It will be rolled back if the callback threw an error, or returned false for the first return value");
+        methods.document("Otherwise, it will be committed");
         methods.add_method_mut(
             "begin",
             |_, this, func: tealr::mlu::TypedFunction<LuaConnection, (Option<bool>, Option<crate::Res>)>| {
@@ -316,6 +356,13 @@ impl<'c> TealData for LuaConnection<'c> {
                 }
             },
         );
+        methods.document("A shorthand to run a basic insert command.");
+        methods.document("WARNING!:");
+        methods.document("the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these values.");
+        methods.document("The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.");
+        methods.document("Parameters:");
+        methods.document("name: the table name that will be inserted into");
+        methods.document("values: A table where the keys are the column names and the values are the values that will be inserted");
         methods.add_method(
             "insert",
             |_, this, (name, values): (String, BTreeMap<String, Input>)| {
@@ -333,6 +380,14 @@ impl<'c> TealData for LuaConnection<'c> {
                 this.execute(sql, values)
             },
         );
+        methods.document("A shorthand to run a basic update command.");
+        methods.document("WARNING!:");
+        methods.document("the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these values.");
+        methods.document("The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.");
+        methods.document("Parameters:");
+        methods.document("name: the table name that will be inserted into");
+        methods.document("old_values: A table used to construct the `where` part of the query. The keys are the column names and the values are the values that will be matched against");
+        methods.document("new_values: A table where the keys are the column names and the values are the values that this column will be updated to");
         methods.add_method(
             "update",
             |_,
@@ -369,6 +424,13 @@ impl<'c> TealData for LuaConnection<'c> {
                 this.execute(sql, new_values)
             },
         );
+        methods.document("A shorthand to run a basic delete command.");
+        methods.document("WARNING!:");
+        methods.document("the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these values.");
+        methods.document("The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.");
+        methods.document("Parameters:");
+        methods.document("name: the table name that will be inserted into");
+        methods.document("old_values: A table used to construct the `where` part of the query. The keys are the column names and the values are the values that will be matched against");
         methods.add_method(
             "delete",
             |_, this, (name, check_on): (String, BTreeMap<String, Input>)| {
@@ -387,6 +449,7 @@ impl<'c> TealData for LuaConnection<'c> {
                 );
                 this.execute(sql, values)
             },
-        )
+        );
+        methods.generate_help();
     }
 }

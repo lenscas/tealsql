@@ -17,6 +17,15 @@ impl From<PgPool> for Pool {
 
 impl TealData for Pool {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
+        methods.document("Gets a connection from the pool");
+        methods.document("Parameters:");
+        methods.document(
+            "call_back: The function that will be executed after the connection has been made.",
+        );
+        methods.document("This function receives the connection object, which will be cleaned up after the function has been executed.");
+        methods.document(
+            "A value returned from this function will also be returned by the connect function",
+        );
         methods.add_method(
             "get_connection",
             |_, me, call_back: tealr::mlu::TypedFunction<LuaConnection, crate::Res>| {
@@ -26,8 +35,9 @@ impl TealData for Pool {
                 let value = call_back.call(con.clone())?;
                 con.drop_con()?;
 
-                Ok((true, value))
+                Ok(value)
             },
-        )
+        );
+        methods.generate_help();
     }
 }

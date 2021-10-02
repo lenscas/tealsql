@@ -132,14 +132,19 @@ impl Iter {
 
 impl TealData for Iter {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
+        methods
+            .document("returns the next item if it is available. Does NOT block the main thread.");
         methods.add_method_mut("try_next", |lua, this, ()| this.next_lua(lua, false));
+        methods.document("Waits until the next item is available and then returns it. DOES block the main thread");
         methods.add_method_mut("next", |lua, this, ()| this.next_lua(lua, true));
+        methods.document("Constructs a blocking iterator that will loop over all the items.");
         methods.add_method("iter", |lua, this, ()| {
             let mut this = this.to_owned();
             let x = lua.create_function_mut(move |lua, ()| this.next_lua(lua, true))?;
             let x = x.to_lua(lua)?;
             let x = tealr::mlu::TypedFunction::<Self, mlua::Value>::from_lua(x, lua)?;
             Ok((x, lua.create_table()?))
-        })
+        });
+        methods.generate_help();
     }
 }

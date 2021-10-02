@@ -48,6 +48,9 @@ pub struct Base {}
 
 impl TealData for Base {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
+        methods.document("Connect to the server and create a connection pool");
+        methods.document("Params:");
+        methods.document("connection_string:The string used to connect to the server.");
         methods.add_function("connect_pool", |_, connection_string: String| {
             let res = async {
                 let pool = PgPool::connect(&connection_string).await?;
@@ -56,6 +59,16 @@ impl TealData for Base {
             let res: Result<_, Error> = block_on(res);
             Ok(res?)
         });
+        methods.document("Connect to the server and create a single connection");
+        methods.document("Params:");
+        methods.document("connection_string:The string used to connect to the server.");
+        methods.document(
+            "func: The function that will be executed after the connection has been made.",
+        );
+        methods.document("This function receives the connection object, which will be cleaned up after the function has been executed.");
+        methods.document(
+            "A value returned from this function will also be returned by the connect function",
+        );
         methods.add_function("connect", |_,(connection_string, func): (String,tealr::mlu::TypedFunction<LuaConnection,Res>)| {
             let con = async {
                 sqlx::postgres::PgConnection::connect(&connection_string).await.map(LuaConnection::from)
@@ -65,7 +78,9 @@ impl TealData for Base {
             con.drop_con()?;
             res
         });
+        methods.document("Returns the value used to represent `null` values in json.");
         methods.add_function("nul", |lua, ()| Ok(lua.null()));
+        methods.document("You can index this type with \"null\" to get the value back that is used to represent null in json.");
         methods.add_meta_function(mlua::MetaMethod::Index, |lua, string: String| {
             if string == "null" {
                 Ok(lua.null())
@@ -73,6 +88,12 @@ impl TealData for Base {
                 Ok(Nil)
             }
         });
+        methods.document("Creates the interval type from postgresql.");
+        methods.document("Params:");
+        methods.document("months: The amount of months in this interval. Defaults to 0");
+        methods.document("days: The amount of days in this interval. Defaults to 0");
+        methods
+            .document("microseconds: The amount of microseconds in this interval. Defaults to 0");
         methods.add_function(
             "interval",
             |_, (months, days, microseconds): (Option<i32>, Option<i32>, Option<i64>)| {
@@ -82,6 +103,7 @@ impl TealData for Base {
                     microseconds: microseconds.unwrap_or_default(),
                 }))
             },
-        )
+        );
+        methods.generate_help();
     }
 }
