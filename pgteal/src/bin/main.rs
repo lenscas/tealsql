@@ -1,3 +1,3 @@
 fn main() {
-    println!("{}", pgteal::generate_types().unwrap())
+    println!("{}", pgteal::generate_types().unwrap());
 }

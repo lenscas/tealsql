@@ -1,4 +1,4 @@
-local pgteal = require "libpgteal"
+
 
 
 function printTable(a: {any:any},tabs:integer)
@@ -18,33 +18,28 @@ function printTable(a: {any:any},tabs:integer)
     end
 end
 
+
+local pgteal = require "libpgteal"
 local pool = pgteal.connect_pool("postgres://tealsql:tealsql@localhost/tealsql")
-
-local type resType = ({string : string | integer | number | boolean | {any:any}})
-
-
-
 pool:get_connection(function(x:pgteal.Connection):boolean
-    local z,y = pcall(function(): resType return x:fetch_one("SELECT * FROM everything WHERE \"varchar1\" = 'nice'",{}) end);
-    print(y);
-    if z then
-        for k,v in pairs(y) do
-            local p = v as any;
-            if p is {any:any} then
-                print(k,"\n = {")
-                printTable(p,1)
-                print("}")
-            else
-                print(k,v)
-            end
+    local res= x:fetch_one("SELECT * FROM everything WHERE \"varchar1\" = 'nice'",{});
+    --print everything that got returned
+    for k,v in pairs(res) do
+        local p = v as any;
+        if p is {any:any} then
+            print(k,"\n = {")
+            printTable(p,1)
+            print("}")
+        else
+            print(k,v)
         end
-        assert(y.character1 == "a")
     end
+    assert(res.character1 == "a")
     print("------")
     print("now the short hands")
     print("-----------")
     print("insert:",x:insert("everything",{varchar1="epic!",money1=24444001}))
-    local res = x:fetch_one("SELECT * FROM everything WHERE \"varchar1\"=$1",{"epic!"});
+    res = x:fetch_one("SELECT * FROM everything WHERE \"varchar1\"=$1",{"epic!"});
     assert(res.money1 == 24444001)
     print("update:",x:update("everything",{varchar1="epic!"},{money1=0}))
     res = x:fetch_one("SELECT * FROM everything WHERE \"varchar1\"=$1",{"epic!"});

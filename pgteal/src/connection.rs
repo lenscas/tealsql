@@ -29,7 +29,7 @@ fn get_lock<'a>(
     })
 }
 
-fn add_params<'b, 'a: 'b>(
+async fn add_params<'b, 'a: 'b>(
     connection: &'a Arc<Mutex<Option<WrappedConnection>>>,
     sql: &'a str,
     params: &'b mut QueryParamCollection,
@@ -41,7 +41,7 @@ fn add_params<'b, 'a: 'b>(
     mlua::Error,
 > {
     let mut v = get_lock(connection)?;
-    let statement = block_on(v.prepare(sql)).map_err(mlua::Error::external)?;
+    let statement = v.prepare(sql).await.map_err(mlua::Error::external)?;
     let query = sqlx::query(sql);
     let query = bind_params_on(
         params,
@@ -102,7 +102,7 @@ impl<'c> LuaConnection<'c> {
         })
     }
 
-    fn add_params<'b, 'a: 'b>(
+    async fn add_params<'b, 'a: 'b>(
         &'a self,
         sql: &'a str,
         params: &'b mut QueryParamCollection,
@@ -113,11 +113,14 @@ impl<'c> LuaConnection<'c> {
         ),
         mlua::Error,
     > {
-        add_params(self.unwrap_connection_option()?, sql, params)
+        add_params(self.unwrap_connection_option()?, sql, params).await
     }
-    fn execute(&self, query: String, mut params: QueryParamCollection) -> mlua::Result<u64> {
-        let (query, mut v) = self.add_params(&query, &mut params)?;
-        let x = block_on(query.execute(v.deref_mut())).map_err(mlua::Error::external)?;
+    async fn execute(&self, query: String, mut params: QueryParamCollection) -> mlua::Result<u64> {
+        let (query, mut v) = self.add_params(&query, &mut params).await?;
+        let x = query
+            .execute(v.deref_mut())
+            .await
+            .map_err(mlua::Error::external)?;
         Ok(x.rows_affected())
     }
     fn extract_lua_to_table_fields(
@@ -181,7 +184,7 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.add_method(
             "fetch_optional",
             |_, this, (query, mut params): (String, QueryParamCollection)| {
-                let (query, mut v) = this.add_params(&query, &mut params)?;
+                let (query, mut v) = block_on(this.add_params(&query, &mut params))?;
                 let x =
                     block_on(query.fetch_optional(v.deref_mut())).map_err(mlua::Error::external);
                 match x {
@@ -200,19 +203,21 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.add_method(
             "fetch_all",
             |_, this, (query, mut params): (String, QueryParamCollection)| {
-                let (query, mut v) = this.add_params(&query, &mut params)?;
+                block_on(async move {
+                    let (query, mut v) = this.add_params(&query, &mut params).await?;
 
-                let mut stream = query.fetch(v.deref_mut());
-                let mut items = Vec::new();
-                loop {
-                    let next = block_on(stream.next());
-                    match next {
-                        Some(Ok(x)) => items.push(LuaRow::from(x)),
-                        Some(Err(x)) => return Err(mlua::Error::external(x)),
-                        None => break,
+                    let mut stream = query.fetch(v.deref_mut());
+                    let mut items = Vec::new();
+                    loop {
+                        let next = stream.next().await;
+                        match next {
+                            Some(Ok(x)) => items.push(LuaRow::from(x)),
+                            Some(Err(x)) => return Err(mlua::Error::external(x)),
+                            None => break,
+                        }
                     }
-                }
-                Ok(items)
+                    Ok(items)
+                })
             },
         );
         methods.document("Runs a thread in the background that fetches all results. Allowing you to consume the results in batches, or do other things while the query is being executed");
@@ -224,42 +229,38 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.document("chunk_count: How big the batches are that will be returned from the background thread to the main one. Higher batch count may improve performance");
         methods.add_method(
             "fetch_all_async",
-            |_, this, (query, mut params, chunk_count): (String, QueryParamCollection, Option<usize>)| {
+            |_, this, (query, mut params, chunk_count): (String, QueryParamCollection, Option<usize>)|  {
                 let chunk_count = chunk_count.unwrap_or(1).max(1);
                 let connection = this.unwrap_connection_option()?.clone();
                 let iter = Iter::from_func(move |sender| {
                     move || {
-                        match add_params(&connection, &query, &mut params) {
-                            Ok((query, mut con)) => {
-                                let mut stream = query
-                                    .fetch(con.deref_mut())
-                                    .map(|v| match v {
-                                        Ok(x) => crate::iter::AsyncMessage::Value(x),
-                                        Err(x) => crate::iter::AsyncMessage::Error(x),
-                                    })
-                                    .chunks(chunk_count);
-                                let looper = async {
-                                    loop {
-                                        match stream.next().await {
-                                            None => break,
-                                            Some(x) => {
-                                                if sender.send(x).is_err() {
-                                                    break;
-                                                }
-                                            }
+                        block_on(async {
+                            match add_params(&connection, &query, &mut params).await {
+                                Ok((query, mut con)) => {
+                                    let mut stream = query
+                                        .fetch(con.deref_mut())
+                                        .map(|v| match v {
+                                            Ok(x) => crate::iter::AsyncMessage::Value(x),
+                                            Err(x) => crate::iter::AsyncMessage::Error(x),
+                                        })
+                                        .chunks(chunk_count)
+                                        .map(|v|sender.send(v));
+                                    
+                                    while let Some(item) = stream.next().await {
+                                        if item.is_err() {
+                                            break
                                         }
                                     }
-                                };
-                                block_on(looper);
-                                drop(sender)
-                            }
-                            Err(x) => {
-                                if let mlua::Error::ExternalError(x) = x {
-                                    let _ =
-                                        sender.send(vec![crate::iter::AsyncMessage::DynError(x)]);
+                                    drop(sender)
+                                }
+                                Err(x) => {
+                                    if let mlua::Error::ExternalError(x) = x {
+                                        let _ =
+                                            sender.send(vec![crate::iter::AsyncMessage::DynError(x)]);
+                                    }
                                 }
                             }
-                        };
+                        });
                     }
                 });
                 Ok(iter)
@@ -273,7 +274,9 @@ impl<'c> TealData for LuaConnection<'c> {
         );
         methods.add_method(
             "execute",
-            |_, this, (query, params): (String, QueryParamCollection)| this.execute(query, params),
+            |_, this, (query, params): (String, QueryParamCollection)| {
+                block_on(this.execute(query, params))
+            },
         );
         methods.document("Params:");
         methods.document("query: The query string that needs to be executed");
@@ -283,7 +286,7 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.add_method(
             "fetch_one",
             |_, this, (query, mut params): (String, QueryParamCollection)| {
-                let (query, mut v) = this.add_params(&query, &mut params)?;
+                let (query, mut v) = block_on(this.add_params(&query, &mut params))?;
                 let x = block_on(query.fetch_one(v.deref_mut())).map_err(mlua::Error::external)?;
                 Ok(LuaRow::from(x))
             },
@@ -377,7 +380,7 @@ impl<'c> TealData for LuaConnection<'c> {
                         .collect::<Vec<_>>()
                         .join(",")
                 );
-                this.execute(sql, values)
+                block_on(this.execute(sql, values))
             },
         );
         methods.document("A shorthand to run a basic update command.");
@@ -421,7 +424,7 @@ impl<'c> TealData for LuaConnection<'c> {
                         .join("\n AND ")
                 );
                 new_values.append(&mut old_values);
-                this.execute(sql, new_values)
+                block_on(this.execute(sql, new_values))
             },
         );
         methods.document("A shorthand to run a basic delete command.");
@@ -447,7 +450,7 @@ impl<'c> TealData for LuaConnection<'c> {
                 ",
                     name, where_parts
                 );
-                this.execute(sql, values)
+                block_on(this.execute(sql, values))
             },
         );
         methods.generate_help();

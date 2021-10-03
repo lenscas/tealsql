@@ -51,14 +51,12 @@ impl TealData for Base {
         methods.document("Connect to the server and create a connection pool");
         methods.document("Params:");
         methods.document("connection_string:The string used to connect to the server.");
-        methods.add_function("connect_pool", |_, connection_string: String| {
-            let res = async {
-                let pool = PgPool::connect(&connection_string).await?;
-                Ok(crate::pool::Pool::from(pool))
-            };
-            let res: Result<_, Error> = block_on(res);
-            Ok(res?)
-        });
+        methods.add_function("connect_pool", |_, connection_string: String| block_on(async move {
+            let pool = PgPool::connect(&connection_string)
+                .await
+                .map_err(Error::from)?;
+            Ok(crate::pool::Pool::from(pool))
+        }));
         methods.document("Connect to the server and create a single connection");
         methods.document("Params:");
         methods.document("connection_string:The string used to connect to the server.");
@@ -69,15 +67,13 @@ impl TealData for Base {
         methods.document(
             "A value returned from this function will also be returned by the connect function",
         );
-        methods.add_function("connect", |_,(connection_string, func): (String,tealr::mlu::TypedFunction<LuaConnection,Res>)| {
-            let con = async {
-                sqlx::postgres::PgConnection::connect(&connection_string).await.map(LuaConnection::from)
-            };
-            let con = block_on(con).map_err(mlua::Error::external)?;
+        methods.add_function("connect", |_,(connection_string, func): (String,tealr::mlu::TypedFunction<LuaConnection,Res>)| block_on(async move {
+            let con = 
+                sqlx::postgres::PgConnection::connect(&connection_string).await.map(LuaConnection::from).map_err(Error::from)?;
             let res =func.call(con.clone());
             con.drop_con()?;
             res
-        });
+        }));
         methods.document("Returns the value used to represent `null` values in json.");
         methods.add_function("nul", |lua, ()| Ok(lua.null()));
         methods.document("You can index this type with \"null\" to get the value back that is used to represent null in json.");

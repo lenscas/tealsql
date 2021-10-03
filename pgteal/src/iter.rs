@@ -2,7 +2,7 @@ use mlua::{FromLua, ToLua};
 use std::{
     collections::VecDeque,
     sync::{
-        mpsc::{Receiver, RecvError, Sender},
+        mpsc::{Receiver, RecvError, Sender, TryRecvError},
         Arc, Mutex,
     },
     thread::JoinHandle,
@@ -10,6 +10,9 @@ use std::{
 use tealr::mlu::TealData;
 
 use sqlx::postgres::PgRow;
+
+// use triple_buffer::{Input, Output, TripleBuffer};
+
 pub(crate) enum AsyncMessage {
     Value(PgRow),
     Error(sqlx::Error),
@@ -18,7 +21,7 @@ pub(crate) enum AsyncMessage {
 #[derive(Clone, tealr::MluaUserData)]
 pub(crate) struct Iter {
     handle: Arc<Mutex<Option<JoinHandle<()>>>>,
-    channel: Arc<Mutex<std::sync::mpsc::Receiver<Vec<AsyncMessage>>>>,
+    channel: Arc<Mutex<Receiver<Vec<AsyncMessage>>>>,
     cache: Arc<Mutex<VecDeque<PgRow>>>,
 }
 
@@ -83,8 +86,8 @@ impl Iter {
                     lock_channel.recv()
                 } else {
                     match lock_channel.try_recv() {
-                        Err(std::sync::mpsc::TryRecvError::Empty) => Ok(Vec::new()),
-                        Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(RecvError),
+                        Err(TryRecvError::Empty) => Ok(Vec::new()),
+                        Err(TryRecvError::Disconnected) => Err(RecvError),
                         Ok(x) => Ok(x),
                     }
                 };
@@ -114,14 +117,28 @@ impl Iter {
         Ok(item)
     }
 
+    fn next_lua_maybe_cached<'lua>(
+        &mut self,
+        lua: &'lua mlua::Lua,
+        force: bool,
+        cached: Option<mlua::Table<'lua>>,
+    ) -> mlua::Result<Option<mlua::Value<'lua>>> {
+        let cached = match cached {
+            Some(x) => x,
+            None => lua.create_table()?,
+        };
+        self.next_lua(lua, force, cached)
+    }
+
     fn next_lua<'lua>(
         &mut self,
         lua: &'lua mlua::Lua,
         force: bool,
+        cached: mlua::Table<'lua>,
     ) -> mlua::Result<Option<mlua::Value<'lua>>> {
         let next = self
             .get_from_cache(force)?
-            .map(|v| crate::pg_row::LuaRow::from(v).to_lua(lua));
+            .map(|v| crate::pg_row::LuaRow::from(v).into_lua_cached(lua, cached));
         match next {
             Some(Err(x)) => Err(x),
             Some(Ok(x)) => Ok(Some(x)),
@@ -134,13 +151,17 @@ impl TealData for Iter {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
         methods
             .document("returns the next item if it is available. Does NOT block the main thread.");
-        methods.add_method_mut("try_next", |lua, this, ()| this.next_lua(lua, false));
+        methods.add_method_mut("try_next", |lua, this, ()| {
+            this.next_lua_maybe_cached(lua, false, None)
+        });
         methods.document("Waits until the next item is available and then returns it. DOES block the main thread");
-        methods.add_method_mut("next", |lua, this, ()| this.next_lua(lua, true));
+        methods.add_method_mut("next", |lua, this, ()| {
+            this.next_lua_maybe_cached(lua, true, None)
+        });
         methods.document("Constructs a blocking iterator that will loop over all the items.");
         methods.add_method("iter", |lua, this, ()| {
             let mut this = this.to_owned();
-            let x = lua.create_function_mut(move |lua, ()| this.next_lua(lua, true))?;
+            let x = lua.create_function_mut(move |lua, table| this.next_lua(lua, true, table))?;
             let x = x.to_lua(lua)?;
             let x = tealr::mlu::TypedFunction::<Self, mlua::Value>::from_lua(x, lua)?;
             Ok((x, lua.create_table()?))
