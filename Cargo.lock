@@ -952,6 +952,7 @@ dependencies = [
  "shared",
  "sqlx",
  "tealr",
+ "triple_buffer",
  "uuid",
 ]
 
@@ -1475,6 +1476,15 @@ name = "tinyvec_macros"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
+
+[[package]]
+name = "triple_buffer"
+version = "5.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "803966e5a8397a70d3d8111afa1597ba8381346d7de4720e9f539471d371a1a3"
+dependencies = [
+ "cache-padded",
+]
 
 [[package]]
 name = "typenum"

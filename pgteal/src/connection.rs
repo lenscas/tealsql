@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::{ops::DerefMut, sync::Arc};
 
 use async_std::task::block_on;
@@ -232,7 +232,7 @@ impl<'c> TealData for LuaConnection<'c> {
             |_, this, (query, mut params, chunk_count): (String, QueryParamCollection, Option<usize>)|  {
                 let chunk_count = chunk_count.unwrap_or(1).max(1);
                 let connection = this.unwrap_connection_option()?.clone();
-                let iter = Iter::from_func(move |sender| {
+                let iter = Iter::from_func(move |mut sender, is_done| {
                     move || {
                         block_on(async {
                             match add_params(&connection, &query, &mut params).await {
@@ -244,19 +244,27 @@ impl<'c> TealData for LuaConnection<'c> {
                                             Err(x) => crate::iter::AsyncMessage::Error(x),
                                         })
                                         .chunks(chunk_count)
-                                        .map(|v|sender.send(v));
+                                        .map(|v|{
+                                            let x = sender.input_buffer();
+                                            x.extend(v);
+                                            sender.publish();
+                                        });
                                     
-                                    while let Some(item) = stream.next().await {
-                                        if item.is_err() {
+                                    while let Some(()) = stream.next().await {
+                                        if is_done.load(std::sync::atomic::Ordering::SeqCst) {
                                             break
                                         }
                                     }
-                                    drop(sender)
+                                    is_done.store(true,std::sync::atomic::Ordering::SeqCst );
                                 }
                                 Err(x) => {
                                     if let mlua::Error::ExternalError(x) = x {
-                                        let _ =
-                                            sender.send(vec![crate::iter::AsyncMessage::DynError(x)]);
+                                        let mut y = VecDeque::new();
+                                        y.push_back(crate::iter::AsyncMessage::DynError(x));
+                                        let x = sender.input_buffer();
+                                            x.append(&mut y);
+                                            sender.publish();
+                                        is_done.store(true, std::sync::atomic::Ordering::SeqCst)
                                     }
                                 }
                             }

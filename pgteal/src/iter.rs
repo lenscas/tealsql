@@ -1,17 +1,16 @@
 use mlua::{FromLua, ToLua};
 use std::{
     collections::VecDeque,
-    sync::{
-        mpsc::{Receiver, RecvError, Sender, TryRecvError},
-        Arc, Mutex,
-    },
+    sync::{atomic::AtomicBool, Arc, Mutex},
     thread::JoinHandle,
 };
 use tealr::mlu::TealData;
 
 use sqlx::postgres::PgRow;
 
-// use triple_buffer::{Input, Output, TripleBuffer};
+use triple_buffer::{Input, Output, TripleBuffer};
+
+use crate::base::Error;
 
 pub(crate) enum AsyncMessage {
     Value(PgRow),
@@ -21,8 +20,8 @@ pub(crate) enum AsyncMessage {
 #[derive(Clone, tealr::MluaUserData)]
 pub(crate) struct Iter {
     handle: Arc<Mutex<Option<JoinHandle<()>>>>,
-    channel: Arc<Mutex<Receiver<Vec<AsyncMessage>>>>,
-    cache: Arc<Mutex<VecDeque<PgRow>>>,
+    channel: Arc<Mutex<Output<VecDeque<AsyncMessage>>>>,
+    close_check: Arc<AtomicBool>,
 }
 
 impl<'e> tealr::TypeName for Iter {
@@ -34,25 +33,32 @@ impl<'e> tealr::TypeName for Iter {
 impl Iter {
     pub(crate) fn from_func<
         ThreadFunc: FnOnce() + Send + 'static,
-        FuncSpawner: FnOnce(Sender<Vec<AsyncMessage>>) -> ThreadFunc,
+        FuncSpawner: FnOnce(Input<VecDeque<AsyncMessage>>, Arc<AtomicBool>) -> ThreadFunc,
     >(
         func: FuncSpawner,
     ) -> Self {
-        let (sender, rec) = std::sync::mpsc::channel();
-        let thread_func = func(sender);
+        let close_check = Arc::new(AtomicBool::new(false));
+        let (sender, rec) = TripleBuffer::default().split();
+        let thread_func = func(sender, close_check.clone());
         let handle = std::thread::spawn(thread_func);
-        Self::new(handle, rec)
+        Self::new(handle, rec, close_check)
     }
 
-    pub(crate) fn new(handle: JoinHandle<()>, channel: Receiver<Vec<AsyncMessage>>) -> Self {
+    pub(crate) fn new(
+        handle: JoinHandle<()>,
+        channel: Output<VecDeque<AsyncMessage>>,
+        close_check: Arc<AtomicBool>,
+    ) -> Self {
         Self {
             handle: Arc::new(Mutex::new(Some(handle))),
             channel: Arc::new(Mutex::new(channel)),
-            cache: Arc::new(Mutex::new(VecDeque::new())),
+            close_check,
         }
     }
 
     fn join(&mut self) {
+        self.close_check
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         match self.handle.lock() {
             Ok(mut x) => {
                 if let Some(x) = x.take() {
@@ -64,16 +70,8 @@ impl Iter {
     }
 
     fn get_from_cache(&mut self, force: bool) -> Result<Option<PgRow>, mlua::Error> {
-        let (item, is_disconnected) = {
-            let mut lock_cache = match self.cache.lock() {
-                Ok(x) => x,
-                Err(_) => {
-                    return Err(mlua::Error::external(crate::base::Error::Custom(
-                        "cache is already in use".into(),
-                    )))
-                }
-            };
-            let lock_channel = match self.channel.lock() {
+        let (item, is_disconnected) = loop {
+            let mut lock_channel = match self.channel.lock() {
                 Ok(x) => x,
                 Err(_) => {
                     return Err(mlua::Error::external(crate::base::Error::Custom(
@@ -81,35 +79,24 @@ impl Iter {
                     )))
                 }
             };
-            let disconnected = if lock_cache.is_empty() {
-                let result = if force {
-                    lock_channel.recv()
-                } else {
-                    match lock_channel.try_recv() {
-                        Err(TryRecvError::Empty) => Ok(Vec::new()),
-                        Err(TryRecvError::Disconnected) => Err(RecvError),
-                        Ok(x) => Ok(x),
-                    }
-                };
-                match result {
-                    Err(_) => true,
-                    Ok(result) => {
-                        for result in result {
-                            match result {
-                                AsyncMessage::Value(x) => {
-                                    lock_cache.push_back(x);
-                                }
-                                AsyncMessage::Error(x) => return Err(mlua::Error::external(x)),
-                                AsyncMessage::DynError(x) => return Err(mlua::Error::external(x)),
-                            }
-                        }
-                        false
-                    }
-                }
+            let x = lock_channel.output_buffer();
+            let disconnected =
+                x.is_empty() && self.close_check.load(std::sync::atomic::Ordering::SeqCst);
+            if disconnected {
+                break (None, true);
             } else {
-                false
-            };
-            (lock_cache.pop_front(), disconnected)
+                let item = x.pop_front();
+                lock_channel.update();
+                let res = match item {
+                    Some(AsyncMessage::DynError(x)) => return Err(mlua::Error::external(x)),
+                    Some(AsyncMessage::Error(x)) => return Err(Error::Sqlx(x).into()),
+                    Some(AsyncMessage::Value(x)) => Some(x),
+                    None => None,
+                };
+                if !force {
+                    break (res, false);
+                }
+            }
         };
         if is_disconnected {
             self.join();

@@ -28,5 +28,5 @@ tealr = {git = "https://github.com/lenscas/tealr", features = ["derive", "mlua",
 serde = "1.0.126"
 serde_json = "1.0.64"
 shared = {path = "../shared"}
-#triple_buffer = "5.0.6"
+triple_buffer = "5.0.6"
 uuid = "0.8.2"
