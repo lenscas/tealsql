@@ -9,7 +9,7 @@ pub fn get_app() -> Params {
     let matches = App::new("PG Teal")
         .version("0.0")
         .author("Lenscas <lenscas@gmail.com>")
-        .about("Generates teal types and functions based on sql.")
+        .about("Generates teal types and functions based on sql files.")
         .arg(
             Arg::with_name("connection_string")
                 .short("c")

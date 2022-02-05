@@ -129,22 +129,25 @@ fn make_function(
     let params: String = query
         .params
         .iter()
-        .map(|v| "    \"".to_owned() + v + "\"")
+        .map(|v| "                \"".to_owned() + v + "\"")
         .collect::<Vec<_>>()
         .join(",\n");
-    let params = format!("local param_order:{{string}} = {{\n{}\n}}", params);
+    let params = format!(
+        "local param_order:{{string}} = {{\n{}\n            }}",
+        params
+    );
     format!(
-        "          {}
-		{}
-		local query_params = {{}}
-		for k,v in ipairs(param_order) do
-			query_params[k] = (params as {{string:{}}})[v]
-		end
-		return connection:{}(
-			[[{}]],
-			query_params
-		) as {}
-		end",
+        "{}
+            {}
+            local query_params = {{}}
+            for k,v in ipairs(param_order) do
+                query_params[k] = (params as {{string:{}}})[v]
+            end
+            return connection:{}(
+[[{}\n]],
+                query_params
+            ) as {}
+        end",
         function_header,
         params,
         shared::Input::get_type_name(tealr::Direction::ToLua),
@@ -221,11 +224,11 @@ pub(crate) fn write_to_file(
                 part.output_type.name,
                 part.output_type.name
             );
-            let functions = part.functions.join(",\n            ");
-            reexported + &functions + "}"
+            let functions = part.functions.join(",\n");
+            reexported + &functions + "\n    }"
         })
         .collect::<Vec<_>>()
-        .join(",");
+        .join(",\n");
 
     let path = get_path(teal_pattern, original_file_path);
     let path = Path::new(&path);
@@ -233,7 +236,7 @@ pub(crate) fn write_to_file(
     std::fs::create_dir_all(path.parent().unwrap())?;
 
     let to_write = format!(
-        "local libpgteal = require(\"libpgteal\")\nlocal Connection = libpgteal.Connection\n{}\nreturn {{{}}}",
+        "local libpgteal = require(\"libpgteal\")\nlocal Connection = libpgteal.Connection\n{}\nreturn {{\n{}\n}}",
         glued_types, modules
     );
     std::fs::write(path, to_write)?;
