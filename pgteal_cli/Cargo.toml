@@ -8,9 +8,9 @@ version = "0.1.0"
 
 [dependencies]
 Inflector = "0.11.4"
-async-std = {version = "*", features = ["attributes"]}
 clap = "2.33.3"
 glob = "0.3.0"
 shared = {path = "../shared"}
-sqlx = {version = "0.5.5", features = ["runtime-async-std-rustls", "postgres", "tls"], default-features = false}
+sqlx = {version = "0.5.5", features = ["runtime-tokio-rustls", "postgres", "tls"], default-features = false}
 tealr = {git = "https://github.com/lenscas/tealr", features = ["derive", "mlua", "mlua_vendored", "mlua_lua54", "mlua_module", "mlua_serialize"], default-features = false}
+tokio = {version = "*", features = ["rt", "macros"]}

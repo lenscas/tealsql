@@ -1,7 +1,6 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::{ops::DerefMut, sync::Arc};
 
-use async_std::task::block_on;
 use either::Either;
 use futures::prelude::stream::StreamExt;
 use parking_lot::{MappedMutexGuard, Mutex};
@@ -12,6 +11,7 @@ use sqlx::{
 };
 use tealr::mlu::mlua;
 use tealr::{mlu::TealData, TypeName};
+use tokio::runtime::Runtime;
 
 pub(crate) type QueryParamCollection = BTreeMap<i64, Input>;
 
@@ -29,7 +29,7 @@ fn get_lock<'a>(
     })
 }
 
-fn add_params<'b, 'a: 'b>(
+async fn add_params<'b, 'a: 'b>(
     connection: &'a Arc<Mutex<Option<WrappedConnection>>>,
     sql: &'a str,
     params: &'b mut QueryParamCollection,
@@ -41,7 +41,7 @@ fn add_params<'b, 'a: 'b>(
     mlua::Error,
 > {
     let mut v = get_lock(connection)?;
-    let statement = block_on(v.prepare(sql)).map_err(mlua::Error::external)?;
+    let statement = v.prepare(sql).await.map_err(mlua::Error::external)?;
     let query = sqlx::query(sql);
     let query = bind_params_on(
         params,
@@ -54,6 +54,7 @@ fn add_params<'b, 'a: 'b>(
 
 #[derive(Clone)]
 pub(crate) struct LuaConnection<'c> {
+    runtime: Arc<Runtime>,
     connection: Option<Arc<Mutex<Option<WrappedConnection>>>>,
     x: &'c std::marker::PhantomData<()>,
 }
@@ -102,7 +103,7 @@ impl<'c> LuaConnection<'c> {
         })
     }
 
-    fn add_params<'b, 'a: 'b>(
+    async fn add_params<'b, 'a: 'b>(
         &'a self,
         sql: &'a str,
         params: &'b mut QueryParamCollection,
@@ -113,11 +114,14 @@ impl<'c> LuaConnection<'c> {
         ),
         mlua::Error,
     > {
-        add_params(self.unwrap_connection_option()?, sql, params)
+        add_params(self.unwrap_connection_option()?, sql, params).await
     }
-    fn execute(&self, query: String, mut params: QueryParamCollection) -> mlua::Result<u64> {
-        let (query, mut v) = self.add_params(&query, &mut params)?;
-        let x = block_on(query.execute(v.deref_mut())).map_err(mlua::Error::external)?;
+    async fn execute(&self, query: String, mut params: QueryParamCollection) -> mlua::Result<u64> {
+        let (query, mut v) = self.add_params(&query, &mut params).await?;
+        let x = query
+            .execute(v.deref_mut())
+            .await
+            .map_err(mlua::Error::external)?;
         Ok(x.rows_affected())
     }
     fn extract_lua_to_table_fields(
@@ -138,37 +142,63 @@ impl<'c> LuaConnection<'c> {
             .collect::<QueryParamCollection>();
         (keys, markers, values)
     }
-}
-
-impl<'c> From<PoolConnection<Postgres>> for LuaConnection<'c> {
-    fn from(connection: PoolConnection<Postgres>) -> Self {
-        LuaConnection {
-            connection: Some(Arc::new(Mutex::new(Some(
-                WrappedConnection::PoolConnection(connection),
-            )))),
-            x: &std::marker::PhantomData,
-        }
-    }
-}
-impl<'c> From<Arc<Mutex<Option<WrappedConnection>>>> for LuaConnection<'c> {
-    fn from(connection: Arc<Mutex<Option<WrappedConnection>>>) -> Self {
-        LuaConnection {
-            connection: Some(connection),
-            x: &std::marker::PhantomData,
-        }
-    }
-}
-
-impl<'c> From<sqlx::PgConnection> for LuaConnection<'c> {
-    fn from(connection: PgConnection) -> Self {
+    pub(crate) fn new(connection: PgConnection, runtime:Arc<Runtime>) -> Self {
         LuaConnection {
             connection: Some(Arc::new(Mutex::new(Some(WrappedConnection::Connection(
-                connection,
-            ))))),
+                                 connection,
+                             ))))),
             x: &std::marker::PhantomData,
+            runtime
+
+        }
+    }
+    pub(crate) fn from_wrapped(from:Arc<Mutex<Option<WrappedConnection>>>,runtime:Arc<Runtime>) -> Self {
+        LuaConnection {
+            connection: Some(from),
+            x: &std::marker::PhantomData,
+            runtime
+        }
+    }
+    pub(crate) fn from_pool(from:PoolConnection<Postgres>, runtime: Arc<Runtime>) -> Self {
+        LuaConnection {
+            connection: Some(Arc::new(Mutex::new(Some(
+                WrappedConnection::PoolConnection(from),
+            )))),
+            x: &std::marker::PhantomData,
+            runtime
         }
     }
 }
+
+// impl<'c> From<PoolConnection<Postgres>> for LuaConnection<'c> {
+    // fn from(connection: PoolConnection<Postgres>) -> Self {
+        // LuaConnection {
+            // connection: Some(Arc::new(Mutex::new(Some(
+                // WrappedConnection::PoolConnection(connection),
+            // )))),
+            // x: &std::marker::PhantomData,
+        // }
+    // }
+// }
+// impl<'c> From<Arc<Mutex<Option<WrappedConnection>>>> for LuaConnection<'c> {
+//     fn from(connection: Arc<Mutex<Option<WrappedConnection>>>) -> Self {
+//         LuaConnection {
+//             connection: Some(connection),
+//             x: &std::marker::PhantomData,
+//         }
+//     }
+// }
+
+// impl<'c> From<sqlx::PgConnection> for LuaConnection<'c> {
+//     fn from(connection: PgConnection) -> Self {
+//         LuaConnection {
+//             connection: Some(Arc::new(Mutex::new(Some(WrappedConnection::Connection(
+//                 connection,
+//             ))))),
+//             x: &std::marker::PhantomData,
+//         }
+//     }
+// }
 
 impl<'c> TealData for LuaConnection<'c> {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
@@ -181,9 +211,9 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.add_method(
             "fetch_optional",
             |_, this, (query, mut params): (String, QueryParamCollection)| {
-                let (query, mut v) = this.add_params(&query, &mut params)?;
+                let (query, mut v) = this.runtime.block_on(this.add_params(&query, &mut params))?;
                 let x =
-                    block_on(query.fetch_optional(v.deref_mut())).map_err(mlua::Error::external);
+                    this.runtime.block_on(query.fetch_optional(v.deref_mut())).map_err(mlua::Error::external);
                 match x {
                     Ok(Some(x)) => Ok(Some(LuaRow::from(x))),
                     Ok(None) => Ok(None),
@@ -200,19 +230,21 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.add_method(
             "fetch_all",
             |_, this, (query, mut params): (String, QueryParamCollection)| {
-                let (query, mut v) = this.add_params(&query, &mut params)?;
+                this.runtime.block_on(async move {
+                    let (query, mut v) = this.add_params(&query, &mut params).await?;
 
-                let mut stream = query.fetch(v.deref_mut());
-                let mut items = Vec::new();
-                loop {
-                    let next = block_on(stream.next());
-                    match next {
-                        Some(Ok(x)) => items.push(LuaRow::from(x)),
-                        Some(Err(x)) => return Err(mlua::Error::external(x)),
-                        None => break,
+                    let mut stream = query.fetch(v.deref_mut());
+                    let mut items = Vec::new();
+                    loop {
+                        let next = stream.next().await;
+                        match next {
+                            Some(Ok(x)) => items.push(LuaRow::from(x)),
+                            Some(Err(x)) => return Err(mlua::Error::external(x)),
+                            None => break,
+                        }
                     }
-                }
-                Ok(items)
+                    Ok(items)
+                })
             },
         );
         methods.document("Runs a thread in the background that fetches all results. Allowing you to consume the results in batches, or do other things while the query is being executed");
@@ -224,42 +256,47 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.document("chunk_count: How big the batches are that will be returned from the background thread to the main one. Higher batch count may improve performance");
         methods.add_method(
             "fetch_all_async",
-            |_, this, (query, mut params, chunk_count): (String, QueryParamCollection, Option<usize>)| {
+            |_, this, (query, mut params, chunk_count): (String, QueryParamCollection, Option<usize>)|  {
                 let chunk_count = chunk_count.unwrap_or(1).max(1);
                 let connection = this.unwrap_connection_option()?.clone();
-                let iter = Iter::from_func(move |sender| {
+                let iter = Iter::from_func(move |mut sender, is_done| {
+                    let runtime = this.runtime.clone();
                     move || {
-                        match add_params(&connection, &query, &mut params) {
-                            Ok((query, mut con)) => {
-                                let mut stream = query
-                                    .fetch(con.deref_mut())
-                                    .map(|v| match v {
-                                        Ok(x) => crate::iter::AsyncMessage::Value(x),
-                                        Err(x) => crate::iter::AsyncMessage::Error(x),
-                                    })
-                                    .chunks(chunk_count);
-                                let looper = async {
-                                    loop {
-                                        match stream.next().await {
-                                            None => break,
-                                            Some(x) => {
-                                                if sender.send(x).is_err() {
-                                                    break;
-                                                }
-                                            }
+                        runtime.clone().block_on (async {
+                            match add_params(&connection, &query, &mut params).await {
+                                Ok((query, mut con)) => {
+                                    let mut stream = query
+                                        .fetch(con.deref_mut())
+                                        .map(|v| match v {
+                                            Ok(x) => crate::iter::AsyncMessage::Value(x),
+                                            Err(x) => crate::iter::AsyncMessage::Error(x),
+                                        })
+                                        .chunks(chunk_count)
+                                        .map(|v|{
+                                            let x = sender.input_buffer();
+                                            x.extend(v);
+                                            sender.publish();
+                                        });
+                                    
+                                    while let Some(()) = stream.next().await {
+                                        if is_done.load(std::sync::atomic::Ordering::SeqCst) {
+                                            break
                                         }
                                     }
-                                };
-                                block_on(looper);
-                                drop(sender)
-                            }
-                            Err(x) => {
-                                if let mlua::Error::ExternalError(x) = x {
-                                    let _ =
-                                        sender.send(vec![crate::iter::AsyncMessage::DynError(x)]);
+                                    is_done.store(true,std::sync::atomic::Ordering::SeqCst );
+                                }
+                                Err(x) => {
+                                    if let mlua::Error::ExternalError(x) = x {
+                                        let mut y = VecDeque::new();
+                                        y.push_back(crate::iter::AsyncMessage::DynError(x));
+                                        let x = sender.input_buffer();
+                                            x.append(&mut y);
+                                            sender.publish();
+                                        is_done.store(true, std::sync::atomic::Ordering::SeqCst)
+                                    }
                                 }
                             }
-                        };
+                        });
                     }
                 });
                 Ok(iter)
@@ -273,7 +310,9 @@ impl<'c> TealData for LuaConnection<'c> {
         );
         methods.add_method(
             "execute",
-            |_, this, (query, params): (String, QueryParamCollection)| this.execute(query, params),
+            |_, this, (query, params): (String, QueryParamCollection)| {
+                this.runtime.block_on(this.execute(query, params))
+            },
         );
         methods.document("Params:");
         methods.document("query: The query string that needs to be executed");
@@ -283,8 +322,8 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.add_method(
             "fetch_one",
             |_, this, (query, mut params): (String, QueryParamCollection)| {
-                let (query, mut v) = this.add_params(&query, &mut params)?;
-                let x = block_on(query.fetch_one(v.deref_mut())).map_err(mlua::Error::external)?;
+                let (query, mut v) = this.runtime.block_on(this.add_params(&query, &mut params))?;
+                let x = this.runtime.block_on(query.fetch_one(v.deref_mut())).map_err(mlua::Error::external)?;
                 Ok(LuaRow::from(x))
             },
         );
@@ -315,14 +354,14 @@ impl<'c> TealData for LuaConnection<'c> {
                         )))
                     }
                 };
-                let res = block_on(con.execute("BEGIN;"));
+                let res = this.runtime.block_on(con.execute("BEGIN;"));
                 if let Err(x) = res {
                     drop(guard);
                     this.connection = Some(connection);
                     return Err(mlua::Error::external(crate::base::Error::Sqlx(x)));
                 }
                 drop(guard);
-                let lua_con = LuaConnection::from(connection.clone());
+                let lua_con = LuaConnection::from_wrapped(connection.clone(),this.runtime.clone());
                 let res: Result<(bool, Option<crate::Res>), _> =
                     func.call(lua_con.clone()).map(|v| match v {
                         (None, x) => (true, x),
@@ -343,7 +382,7 @@ impl<'c> TealData for LuaConnection<'c> {
                     Ok((false, _)) => "ROLLBACK",
                     Err(_) => "ROLLBACK",
                 };
-                let rollback_res = block_on(con.execute(action));
+                let rollback_res = this.runtime.block_on(con.execute(action));
                 drop(guard);
                 this.connection = Some(connection);
                 match (res, rollback_res) {
@@ -377,7 +416,7 @@ impl<'c> TealData for LuaConnection<'c> {
                         .collect::<Vec<_>>()
                         .join(",")
                 );
-                this.execute(sql, values)
+                this.runtime.block_on(this.execute(sql, values))
             },
         );
         methods.document("A shorthand to run a basic update command.");
@@ -421,7 +460,7 @@ impl<'c> TealData for LuaConnection<'c> {
                         .join("\n AND ")
                 );
                 new_values.append(&mut old_values);
-                this.execute(sql, new_values)
+                this.runtime.block_on(this.execute(sql, new_values))
             },
         );
         methods.document("A shorthand to run a basic delete command.");
@@ -447,7 +486,7 @@ impl<'c> TealData for LuaConnection<'c> {
                 ",
                     name, where_parts
                 );
-                this.execute(sql, values)
+                this.runtime.block_on(this.execute(sql, values))
             },
         );
         methods.generate_help();

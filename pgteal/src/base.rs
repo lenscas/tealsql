@@ -1,12 +1,12 @@
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 
-use async_std::task::block_on;
 use mlua::{LuaSerdeExt, Value::Nil};
 use sqlx::{postgres::types::PgInterval, Connection, PgPool};
 use tealr::{
     mlu::{mlua, TealData},
     TypeName,
 };
+use tokio::runtime::Runtime;
 
 use crate::{connection::LuaConnection, Res};
 
@@ -52,12 +52,13 @@ impl TealData for Base {
         methods.document("Params:");
         methods.document("connection_string:The string used to connect to the server.");
         methods.add_function("connect_pool", |_, connection_string: String| {
-            let res = async {
-                let pool = PgPool::connect(&connection_string).await?;
-                Ok(crate::pool::Pool::from(pool))
-            };
-            let res: Result<_, Error> = block_on(res);
-            Ok(res?)
+            let runtime = Arc::new(Runtime::new()?);
+            runtime.clone().block_on(async move {
+                let pool = PgPool::connect(&connection_string)
+                    .await
+                    .map_err(Error::from)?;
+                Ok(crate::pool::Pool::new(pool, runtime))
+            })
         });
         methods.document("Connect to the server and create a single connection");
         methods.document("Params:");
@@ -70,13 +71,16 @@ impl TealData for Base {
             "A value returned from this function will also be returned by the connect function",
         );
         methods.add_function("connect", |_,(connection_string, func): (String,tealr::mlu::TypedFunction<LuaConnection,Res>)| {
-            let con = async {
-                sqlx::postgres::PgConnection::connect(&connection_string).await.map(LuaConnection::from)
-            };
-            let con = block_on(con).map_err(mlua::Error::external)?;
-            let res =func.call(con.clone());
-            con.drop_con()?;
-            res
+            let runtime = Arc::new(Runtime::new()?);
+            let con = runtime.clone().block_on(async move {
+                sqlx::postgres::PgConnection::connect(&connection_string)
+                    .await
+                    .map(|v|LuaConnection::new(v, runtime))
+                    .map_err(Error::from)
+        })?;
+        let res =func.call(con.clone());
+        con.drop_con()?;
+        res
         });
         methods.document("Returns the value used to represent `null` values in json.");
         methods.add_function("nul", |lua, ()| Ok(lua.null()));

@@ -12,8 +12,13 @@ impl TypeName for LuaRow {
         Cow::Owned(format!("{{string:{}}}", Input::get_type_name(dir)))
     }
 }
-impl<'lua> mlua::ToLua<'lua> for LuaRow {
-    fn to_lua(self, lua: &'lua mlua::Lua) -> std::result::Result<mlua::Value<'lua>, mlua::Error> {
+
+impl LuaRow {
+    pub fn into_lua_cached<'lua>(
+        self,
+        lua: &'lua mlua::Lua,
+        table: mlua::Table<'lua>,
+    ) -> std::result::Result<mlua::Value<'lua>, mlua::Error> {
         let columns = self.row.columns();
         let names = columns
             .iter()
@@ -33,12 +38,17 @@ impl<'lua> mlua::ToLua<'lua> for LuaRow {
                 Ok((name, value))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let table = lua.create_table()?;
 
         for (k, v) in names {
-            table.set(k, v)?;
+            table.raw_set(k, v)?;
         }
         Ok(mlua::Value::Table(table))
+    }
+}
+
+impl<'lua> mlua::ToLua<'lua> for LuaRow {
+    fn to_lua(self, lua: &'lua mlua::Lua) -> std::result::Result<mlua::Value<'lua>, mlua::Error> {
+        self.into_lua_cached(lua, lua.create_table()?)
     }
 }
 

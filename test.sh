@@ -1,5 +1,5 @@
 cd pgteal
-cargo run > ../tests/libpgteal.d.tl
+cargo run --bin main > ../tests/libpgteal.d.tl
 cargo build --release
 cd ..
 cp ./target/release/libpgteal.d ./tests/libpgteal.d 

@@ -5,6 +5,7 @@ local record libpgteal
 		connect_pool: function(string):(Pool)
 		connect: function<Res>(string, function(Connection):(Res)):(Res)
 		nul: function():(any)
+		interval: function(integer, integer, integer):(Interval)
 		-- Meta functions
 		metamethod __index: function(string):(any)
 
@@ -34,6 +35,14 @@ local record libpgteal
 		-- Mutating methods
 		try_next: function(Stream<any>):(any)
 		next: function(Stream<any>):(any)
+
+	end
+	record Interval
+		
+		-- Fields
+		months : integer
+		days : integer
+		microseconds : integer
 
 	end
 end
