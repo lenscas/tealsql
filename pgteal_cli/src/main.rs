@@ -11,7 +11,7 @@ use crate::{
     tl_generator::query_to_teal,
 };
 
-#[async_std::main]
+#[tokio::main]
 async fn main() {
     let Params {
         teal_pattern,

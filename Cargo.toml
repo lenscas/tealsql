@@ -4,3 +4,6 @@ members = [
   "pgteal",
   "shared",
 ]
+
+[profile.release]
+debug = true

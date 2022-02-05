@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::{ops::DerefMut, sync::Arc};
 
-use async_std::task::block_on;
 use either::Either;
 use futures::prelude::stream::StreamExt;
 use parking_lot::{MappedMutexGuard, Mutex};
@@ -12,6 +11,7 @@ use sqlx::{
 };
 use tealr::mlu::mlua;
 use tealr::{mlu::TealData, TypeName};
+use tokio::runtime::Runtime;
 
 pub(crate) type QueryParamCollection = BTreeMap<i64, Input>;
 
@@ -54,6 +54,7 @@ async fn add_params<'b, 'a: 'b>(
 
 #[derive(Clone)]
 pub(crate) struct LuaConnection<'c> {
+    runtime: Arc<Runtime>,
     connection: Option<Arc<Mutex<Option<WrappedConnection>>>>,
     x: &'c std::marker::PhantomData<()>,
 }
@@ -141,37 +142,63 @@ impl<'c> LuaConnection<'c> {
             .collect::<QueryParamCollection>();
         (keys, markers, values)
     }
-}
-
-impl<'c> From<PoolConnection<Postgres>> for LuaConnection<'c> {
-    fn from(connection: PoolConnection<Postgres>) -> Self {
-        LuaConnection {
-            connection: Some(Arc::new(Mutex::new(Some(
-                WrappedConnection::PoolConnection(connection),
-            )))),
-            x: &std::marker::PhantomData,
-        }
-    }
-}
-impl<'c> From<Arc<Mutex<Option<WrappedConnection>>>> for LuaConnection<'c> {
-    fn from(connection: Arc<Mutex<Option<WrappedConnection>>>) -> Self {
-        LuaConnection {
-            connection: Some(connection),
-            x: &std::marker::PhantomData,
-        }
-    }
-}
-
-impl<'c> From<sqlx::PgConnection> for LuaConnection<'c> {
-    fn from(connection: PgConnection) -> Self {
+    pub(crate) fn new(connection: PgConnection, runtime:Arc<Runtime>) -> Self {
         LuaConnection {
             connection: Some(Arc::new(Mutex::new(Some(WrappedConnection::Connection(
-                connection,
-            ))))),
+                                 connection,
+                             ))))),
             x: &std::marker::PhantomData,
+            runtime
+
+        }
+    }
+    pub(crate) fn from_wrapped(from:Arc<Mutex<Option<WrappedConnection>>>,runtime:Arc<Runtime>) -> Self {
+        LuaConnection {
+            connection: Some(from),
+            x: &std::marker::PhantomData,
+            runtime
+        }
+    }
+    pub(crate) fn from_pool(from:PoolConnection<Postgres>, runtime: Arc<Runtime>) -> Self {
+        LuaConnection {
+            connection: Some(Arc::new(Mutex::new(Some(
+                WrappedConnection::PoolConnection(from),
+            )))),
+            x: &std::marker::PhantomData,
+            runtime
         }
     }
 }
+
+// impl<'c> From<PoolConnection<Postgres>> for LuaConnection<'c> {
+    // fn from(connection: PoolConnection<Postgres>) -> Self {
+        // LuaConnection {
+            // connection: Some(Arc::new(Mutex::new(Some(
+                // WrappedConnection::PoolConnection(connection),
+            // )))),
+            // x: &std::marker::PhantomData,
+        // }
+    // }
+// }
+// impl<'c> From<Arc<Mutex<Option<WrappedConnection>>>> for LuaConnection<'c> {
+//     fn from(connection: Arc<Mutex<Option<WrappedConnection>>>) -> Self {
+//         LuaConnection {
+//             connection: Some(connection),
+//             x: &std::marker::PhantomData,
+//         }
+//     }
+// }
+
+// impl<'c> From<sqlx::PgConnection> for LuaConnection<'c> {
+//     fn from(connection: PgConnection) -> Self {
+//         LuaConnection {
+//             connection: Some(Arc::new(Mutex::new(Some(WrappedConnection::Connection(
+//                 connection,
+//             ))))),
+//             x: &std::marker::PhantomData,
+//         }
+//     }
+// }
 
 impl<'c> TealData for LuaConnection<'c> {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
@@ -184,9 +211,9 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.add_method(
             "fetch_optional",
             |_, this, (query, mut params): (String, QueryParamCollection)| {
-                let (query, mut v) = block_on(this.add_params(&query, &mut params))?;
+                let (query, mut v) = this.runtime.block_on(this.add_params(&query, &mut params))?;
                 let x =
-                    block_on(query.fetch_optional(v.deref_mut())).map_err(mlua::Error::external);
+                    this.runtime.block_on(query.fetch_optional(v.deref_mut())).map_err(mlua::Error::external);
                 match x {
                     Ok(Some(x)) => Ok(Some(LuaRow::from(x))),
                     Ok(None) => Ok(None),
@@ -203,7 +230,7 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.add_method(
             "fetch_all",
             |_, this, (query, mut params): (String, QueryParamCollection)| {
-                block_on(async move {
+                this.runtime.block_on(async move {
                     let (query, mut v) = this.add_params(&query, &mut params).await?;
 
                     let mut stream = query.fetch(v.deref_mut());
@@ -233,8 +260,9 @@ impl<'c> TealData for LuaConnection<'c> {
                 let chunk_count = chunk_count.unwrap_or(1).max(1);
                 let connection = this.unwrap_connection_option()?.clone();
                 let iter = Iter::from_func(move |mut sender, is_done| {
+                    let runtime = this.runtime.clone();
                     move || {
-                        block_on(async {
+                        runtime.clone().block_on (async {
                             match add_params(&connection, &query, &mut params).await {
                                 Ok((query, mut con)) => {
                                     let mut stream = query
@@ -283,7 +311,7 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.add_method(
             "execute",
             |_, this, (query, params): (String, QueryParamCollection)| {
-                block_on(this.execute(query, params))
+                this.runtime.block_on(this.execute(query, params))
             },
         );
         methods.document("Params:");
@@ -294,8 +322,8 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.add_method(
             "fetch_one",
             |_, this, (query, mut params): (String, QueryParamCollection)| {
-                let (query, mut v) = block_on(this.add_params(&query, &mut params))?;
-                let x = block_on(query.fetch_one(v.deref_mut())).map_err(mlua::Error::external)?;
+                let (query, mut v) = this.runtime.block_on(this.add_params(&query, &mut params))?;
+                let x = this.runtime.block_on(query.fetch_one(v.deref_mut())).map_err(mlua::Error::external)?;
                 Ok(LuaRow::from(x))
             },
         );
@@ -326,14 +354,14 @@ impl<'c> TealData for LuaConnection<'c> {
                         )))
                     }
                 };
-                let res = block_on(con.execute("BEGIN;"));
+                let res = this.runtime.block_on(con.execute("BEGIN;"));
                 if let Err(x) = res {
                     drop(guard);
                     this.connection = Some(connection);
                     return Err(mlua::Error::external(crate::base::Error::Sqlx(x)));
                 }
                 drop(guard);
-                let lua_con = LuaConnection::from(connection.clone());
+                let lua_con = LuaConnection::from_wrapped(connection.clone(),this.runtime.clone());
                 let res: Result<(bool, Option<crate::Res>), _> =
                     func.call(lua_con.clone()).map(|v| match v {
                         (None, x) => (true, x),
@@ -354,7 +382,7 @@ impl<'c> TealData for LuaConnection<'c> {
                     Ok((false, _)) => "ROLLBACK",
                     Err(_) => "ROLLBACK",
                 };
-                let rollback_res = block_on(con.execute(action));
+                let rollback_res = this.runtime.block_on(con.execute(action));
                 drop(guard);
                 this.connection = Some(connection);
                 match (res, rollback_res) {
@@ -388,7 +416,7 @@ impl<'c> TealData for LuaConnection<'c> {
                         .collect::<Vec<_>>()
                         .join(",")
                 );
-                block_on(this.execute(sql, values))
+                this.runtime.block_on(this.execute(sql, values))
             },
         );
         methods.document("A shorthand to run a basic update command.");
@@ -432,7 +460,7 @@ impl<'c> TealData for LuaConnection<'c> {
                         .join("\n AND ")
                 );
                 new_values.append(&mut old_values);
-                block_on(this.execute(sql, new_values))
+                this.runtime.block_on(this.execute(sql, new_values))
             },
         );
         methods.document("A shorthand to run a basic delete command.");
@@ -458,7 +486,7 @@ impl<'c> TealData for LuaConnection<'c> {
                 ",
                     name, where_parts
                 );
-                block_on(this.execute(sql, values))
+                this.runtime.block_on(this.execute(sql, values))
             },
         );
         methods.generate_help();
