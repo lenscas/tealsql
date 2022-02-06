@@ -1,0 +1,34 @@
+name: Tests
+on:
+  pull_request:
+    paths:
+      - "**/*.rs"
+      - 'Cargo.toml'
+      - '**/Cargo.lock'
+      - '**/Cargo.toml'
+      - '.github/workflows/ci.yml'
+jobs:
+  formatting:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: hecrj/setup-rust-action@v1
+      with:
+        rust-version: stable
+        components: rustfmt
+    - name: Formatting check
+      run: cargo fmt --all -- --check
+  clippy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        tests :
+          - "cargo clippy"
+    steps:
+    - uses: hecrj/setup-rust-action@v1.3.4 
+      with:
+        rust-version: stable
+        components: clippy
+    - uses: actions/checkout@master
+    - name: Clippy
+      run: ${{matrix.tests}}
