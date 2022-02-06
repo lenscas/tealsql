@@ -56,7 +56,7 @@ async fn add_params<'b, 'a: 'b>(
 pub(crate) struct LuaConnection<'c> {
     runtime: Arc<Runtime>,
     connection: Option<Arc<Mutex<Option<WrappedConnection>>>>,
-    x: &'c std::marker::PhantomData<()>,
+    _x: std::marker::PhantomData<&'c ()>,
 }
 impl<'c> TypeName for LuaConnection<'c> {
     //the name of the type as known to teal.
@@ -76,6 +76,59 @@ impl tealr::TypeBody for LuaConnection<'static> {
     fn get_type_body(_: ::tealr::Direction, gen: &mut ::tealr::TypeGenerator) {
         gen.is_user_data = true;
         <Self as ::tealr::mlu::TealData>::add_methods(gen);
+    }
+}
+
+fn sanitize_db_table_name(name:String, should_get_quoted:bool) -> Result<String,mlua::Error> {
+    if should_get_quoted {
+        if name.contains('"') {
+            Err(
+                mlua::Error::external(
+                    crate::base::Error::Custom(
+                        format!(
+                            "Possible sql injection attack!
+
+                            The given table or column name contains quotes while being marked as needing to be quoted. 
+                            The helper functions for insert, delete and update only offer very basic protection against sql injection for the table and column names.
+                            Please, use hardcoded table and column names to prevent sql injection. Refer to the docs for more information.
+                            
+                            Name: {name}
+                            "
+                        )
+                    )
+                )
+            )
+        } else {
+            let name = "\"".to_string() + &name.replace(".", "\".\"") + "\"";
+            Ok(name)
+        }
+    } else if 
+        name.starts_with(
+            |v:char|(v.is_alphabetic() || v == '_')
+        ) && 
+        name
+            .chars()
+            .all(
+                |v| v.is_alphanumeric() || v == '_'
+            ) {
+        Ok(name)
+    } else {
+        Err(
+            mlua::Error::external(
+                crate::base::Error::Custom(
+                        format!(
+                            "Possible sql injection attack!
+                            
+                            The given table or column name does not seem to fit the naming rules for postgresql names. 
+                            The helper functions for insert, delete and update only offer very basic protection against sql injection for the table and column names.
+                            Please, use hardcoded table and column names to prevent sql injection. Refer to the docs for more information.
+                            
+                            Name: {name}
+                            "
+                        )
+                    )
+            )
+        )
     }
 }
 
@@ -127,27 +180,27 @@ impl<'c> LuaConnection<'c> {
     fn extract_lua_to_table_fields(
         values: BTreeMap<String, Input>,
         continue_from: i64,
-    ) -> (Vec<String>, Vec<i64>, QueryParamCollection) {
-        let x = values.into_iter().collect::<Vec<_>>();
-        let keys = x
-            .iter()
-            .map(|(key, _)| format!("\"{}\"", key))
-            .collect::<Vec<_>>();
+    ) -> Result<(Vec<String>, Vec<i64>, QueryParamCollection),mlua::Error> {
+        let (keys,names): (Vec<String>,Vec<Input>) = values.into_iter().unzip();
+        let keys = keys
+            .into_iter()
+            .map(|key| sanitize_db_table_name(key,true))
+            .collect::<Result<Vec<_>,_>>()?;
         let mut markers = Vec::new();
-        let values = x
+        let values = names
             .into_iter()
             .enumerate()
-            .map(|(key, (_, x))| (((key + 1) as i64) + continue_from, x))
+            .map(|(key,  x)| (((key + 1) as i64) + continue_from, x))
             .inspect(|(key, _)| markers.push(*key))
             .collect::<QueryParamCollection>();
-        (keys, markers, values)
+        Ok((keys, markers, values))
     }
     pub(crate) fn new(connection: PgConnection, runtime:Arc<Runtime>) -> Self {
         LuaConnection {
             connection: Some(Arc::new(Mutex::new(Some(WrappedConnection::Connection(
                                  connection,
                              ))))),
-            x: &std::marker::PhantomData,
+            _x: std::marker::PhantomData,
             runtime
 
         }
@@ -155,7 +208,7 @@ impl<'c> LuaConnection<'c> {
     pub(crate) fn from_wrapped(from:Arc<Mutex<Option<WrappedConnection>>>,runtime:Arc<Runtime>) -> Self {
         LuaConnection {
             connection: Some(from),
-            x: &std::marker::PhantomData,
+            _x: std::marker::PhantomData,
             runtime
         }
     }
@@ -164,41 +217,11 @@ impl<'c> LuaConnection<'c> {
             connection: Some(Arc::new(Mutex::new(Some(
                 WrappedConnection::PoolConnection(from),
             )))),
-            x: &std::marker::PhantomData,
+            _x: std::marker::PhantomData,
             runtime
         }
     }
 }
-
-// impl<'c> From<PoolConnection<Postgres>> for LuaConnection<'c> {
-    // fn from(connection: PoolConnection<Postgres>) -> Self {
-        // LuaConnection {
-            // connection: Some(Arc::new(Mutex::new(Some(
-                // WrappedConnection::PoolConnection(connection),
-            // )))),
-            // x: &std::marker::PhantomData,
-        // }
-    // }
-// }
-// impl<'c> From<Arc<Mutex<Option<WrappedConnection>>>> for LuaConnection<'c> {
-//     fn from(connection: Arc<Mutex<Option<WrappedConnection>>>) -> Self {
-//         LuaConnection {
-//             connection: Some(connection),
-//             x: &std::marker::PhantomData,
-//         }
-//     }
-// }
-
-// impl<'c> From<sqlx::PgConnection> for LuaConnection<'c> {
-//     fn from(connection: PgConnection) -> Self {
-//         LuaConnection {
-//             connection: Some(Arc::new(Mutex::new(Some(WrappedConnection::Connection(
-//                 connection,
-//             ))))),
-//             x: &std::marker::PhantomData,
-//         }
-//     }
-// }
 
 impl<'c> TealData for LuaConnection<'c> {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
@@ -402,10 +425,12 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.document("Parameters:");
         methods.document("name: the table name that will be inserted into");
         methods.document("values: A table where the keys are the column names and the values are the values that will be inserted");
+        methods.document("needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s");
         methods.add_method(
             "insert",
-            |_, this, (name, values): (String, BTreeMap<String, Input>)| {
-                let (keys, markers, values) = Self::extract_lua_to_table_fields(values, 0);
+            |_, this, (name, values, needs_to_get_quoted): (String, BTreeMap<String, Input>,Option<bool>)| {
+                let name = sanitize_db_table_name(name,needs_to_get_quoted.unwrap_or(false))?;
+                let (keys, markers, values) = Self::extract_lua_to_table_fields(values, 0)?;
                 let sql = format!(
                     "INSERT INTO \"{}\" ({}) VALUES ({})",
                     name,
@@ -421,25 +446,29 @@ impl<'c> TealData for LuaConnection<'c> {
         );
         methods.document("A shorthand to run a basic update command.");
         methods.document("WARNING!:");
-        methods.document("the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these values.");
+        methods.document("the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these.");
         methods.document("The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.");
         methods.document("Parameters:");
         methods.document("name: the table name that will be inserted into");
         methods.document("old_values: A table used to construct the `where` part of the query. The keys are the column names and the values are the values that will be matched against");
         methods.document("new_values: A table where the keys are the column names and the values are the values that this column will be updated to");
+        methods.document("needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s");
         methods.add_method(
             "update",
             |_,
              this,
-             (name, old_values, new_values): (
+             (name, old_values, new_values, needs_to_get_quoted): (
                 String,
                 BTreeMap<String, Input>,
                 BTreeMap<String, Input>,
+                Option<bool>
             )| {
+                let name = sanitize_db_table_name(name,needs_to_get_quoted.unwrap_or(false))?;
+
                 let (old_keys, old_markers, mut old_values) =
-                    Self::extract_lua_to_table_fields(old_values, 0);
+                    Self::extract_lua_to_table_fields(old_values, 0)?;
                 let (new_keys, new_markers, mut new_values) =
-                    Self::extract_lua_to_table_fields(new_values, (old_markers.len()) as i64);
+                    Self::extract_lua_to_table_fields(new_values, (old_markers.len()) as i64)?;
                 let sql = format!(
                     "UPDATE \"{}\"
                     SET {}
@@ -470,10 +499,12 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.document("Parameters:");
         methods.document("name: the table name that will be inserted into");
         methods.document("old_values: A table used to construct the `where` part of the query. The keys are the column names and the values are the values that will be matched against");
+        methods.document("needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s");
         methods.add_method(
             "delete",
-            |_, this, (name, check_on): (String, BTreeMap<String, Input>)| {
-                let (keys, markers, values) = Self::extract_lua_to_table_fields(check_on, 0);
+            |_, this, (name, check_on, needs_to_get_quoted): (String, BTreeMap<String, Input>,Option<bool>)| {
+                let name = sanitize_db_table_name(name,needs_to_get_quoted.unwrap_or(false))?;
+                let (keys, markers, values) = Self::extract_lua_to_table_fields(check_on, 0)?;
                 let where_parts = keys
                     .into_iter()
                     .zip(markers.into_iter())

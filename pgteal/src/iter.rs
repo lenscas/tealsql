@@ -26,7 +26,7 @@ pub(crate) struct Iter {
 
 impl<'e> tealr::TypeName for Iter {
     fn get_type_name(_: tealr::Direction) -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("Stream<any>")
+        std::borrow::Cow::Borrowed("Stream")
     }
 }
 
@@ -136,12 +136,13 @@ impl Iter {
 
 impl TealData for Iter {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
-        methods
-            .document("returns the next item if it is available. Does NOT block the main thread.");
+        methods.document("returns the next item if it is available or nill if not.");
+        methods.document("Does NOT block the main thread.");
         methods.add_method_mut("try_next", |lua, this, ()| {
             this.next_lua_maybe_cached(lua, false, None)
         });
-        methods.document("Waits until the next item is available and then returns it. DOES block the main thread");
+        methods.document("Waits until the next item is available and then returns it.");
+        methods.document("DOES block the main thread");
         methods.add_method_mut("next", |lua, this, ()| {
             this.next_lua_maybe_cached(lua, true, None)
         });
