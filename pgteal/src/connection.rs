@@ -79,7 +79,7 @@ impl tealr::TypeBody for LuaConnection<'static> {
     }
 }
 
-fn sanitize_db_table_name(name:String, should_get_quoted:bool) -> Result<String,mlua::Error> {
+fn sanitize_db_table_name(name: String, should_get_quoted: bool) -> Result<String, mlua::Error> {
     if should_get_quoted {
         if name.contains('"') {
             Err(
@@ -102,15 +102,9 @@ fn sanitize_db_table_name(name:String, should_get_quoted:bool) -> Result<String,
             let name = "\"".to_string() + &name.replace(".", "\".\"") + "\"";
             Ok(name)
         }
-    } else if 
-        name.starts_with(
-            |v:char|(v.is_alphabetic() || v == '_')
-        ) && 
-        name
-            .chars()
-            .all(
-                |v| v.is_alphanumeric() || v == '_'
-            ) {
+    } else if name.starts_with(|v: char| (v.is_alphabetic() || v == '_'))
+        && name.chars().all(|v| v.is_alphanumeric() || v == '_')
+    {
         Ok(name)
     } else {
         Err(
@@ -180,45 +174,47 @@ impl<'c> LuaConnection<'c> {
     fn extract_lua_to_table_fields(
         values: BTreeMap<String, Input>,
         continue_from: i64,
-    ) -> Result<(Vec<String>, Vec<i64>, QueryParamCollection),mlua::Error> {
-        let (keys,names): (Vec<String>,Vec<Input>) = values.into_iter().unzip();
+    ) -> Result<(Vec<String>, Vec<i64>, QueryParamCollection), mlua::Error> {
+        let (keys, names): (Vec<String>, Vec<Input>) = values.into_iter().unzip();
         let keys = keys
             .into_iter()
-            .map(|key| sanitize_db_table_name(key,true))
-            .collect::<Result<Vec<_>,_>>()?;
+            .map(|key| sanitize_db_table_name(key, true))
+            .collect::<Result<Vec<_>, _>>()?;
         let mut markers = Vec::new();
         let values = names
             .into_iter()
             .enumerate()
-            .map(|(key,  x)| (((key + 1) as i64) + continue_from, x))
+            .map(|(key, x)| (((key + 1) as i64) + continue_from, x))
             .inspect(|(key, _)| markers.push(*key))
             .collect::<QueryParamCollection>();
         Ok((keys, markers, values))
     }
-    pub(crate) fn new(connection: PgConnection, runtime:Arc<Runtime>) -> Self {
+    pub(crate) fn new(connection: PgConnection, runtime: Arc<Runtime>) -> Self {
         LuaConnection {
             connection: Some(Arc::new(Mutex::new(Some(WrappedConnection::Connection(
-                                 connection,
-                             ))))),
+                connection,
+            ))))),
             _x: std::marker::PhantomData,
-            runtime
-
+            runtime,
         }
     }
-    pub(crate) fn from_wrapped(from:Arc<Mutex<Option<WrappedConnection>>>,runtime:Arc<Runtime>) -> Self {
+    pub(crate) fn from_wrapped(
+        from: Arc<Mutex<Option<WrappedConnection>>>,
+        runtime: Arc<Runtime>,
+    ) -> Self {
         LuaConnection {
             connection: Some(from),
             _x: std::marker::PhantomData,
-            runtime
+            runtime,
         }
     }
-    pub(crate) fn from_pool(from:PoolConnection<Postgres>, runtime: Arc<Runtime>) -> Self {
+    pub(crate) fn from_pool(from: PoolConnection<Postgres>, runtime: Arc<Runtime>) -> Self {
         LuaConnection {
             connection: Some(Arc::new(Mutex::new(Some(
                 WrappedConnection::PoolConnection(from),
             )))),
             _x: std::marker::PhantomData,
-            runtime
+            runtime,
         }
     }
 }
@@ -234,9 +230,13 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.add_method(
             "fetch_optional",
             |_, this, (query, mut params): (String, QueryParamCollection)| {
-                let (query, mut v) = this.runtime.block_on(this.add_params(&query, &mut params))?;
-                let x =
-                    this.runtime.block_on(query.fetch_optional(v.deref_mut())).map_err(mlua::Error::external);
+                let (query, mut v) = this
+                    .runtime
+                    .block_on(this.add_params(&query, &mut params))?;
+                let x = this
+                    .runtime
+                    .block_on(query.fetch_optional(v.deref_mut()))
+                    .map_err(mlua::Error::external);
                 match x {
                     Ok(Some(x)) => Ok(Some(LuaRow::from(x))),
                     Ok(None) => Ok(None),
@@ -300,7 +300,6 @@ impl<'c> TealData for LuaConnection<'c> {
                                             x.extend(v);
                                             sender.publish();
                                         });
-                                    
                                     while let Some(()) = stream.next().await {
                                         if is_done.load(std::sync::atomic::Ordering::SeqCst) {
                                             break
@@ -345,8 +344,13 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.add_method(
             "fetch_one",
             |_, this, (query, mut params): (String, QueryParamCollection)| {
-                let (query, mut v) = this.runtime.block_on(this.add_params(&query, &mut params))?;
-                let x = this.runtime.block_on(query.fetch_one(v.deref_mut())).map_err(mlua::Error::external)?;
+                let (query, mut v) = this
+                    .runtime
+                    .block_on(this.add_params(&query, &mut params))?;
+                let x = this
+                    .runtime
+                    .block_on(query.fetch_one(v.deref_mut()))
+                    .map_err(mlua::Error::external)?;
                 Ok(LuaRow::from(x))
             },
         );
@@ -428,8 +432,14 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.document("needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s");
         methods.add_method(
             "insert",
-            |_, this, (name, values, needs_to_get_quoted): (String, BTreeMap<String, Input>,Option<bool>)| {
-                let name = sanitize_db_table_name(name,needs_to_get_quoted.unwrap_or(false))?;
+            |_,
+             this,
+             (name, values, needs_to_get_quoted): (
+                String,
+                BTreeMap<String, Input>,
+                Option<bool>,
+            )| {
+                let name = sanitize_db_table_name(name, needs_to_get_quoted.unwrap_or(false))?;
                 let (keys, markers, values) = Self::extract_lua_to_table_fields(values, 0)?;
                 let sql = format!(
                     "INSERT INTO \"{}\" ({}) VALUES ({})",
@@ -461,9 +471,9 @@ impl<'c> TealData for LuaConnection<'c> {
                 String,
                 BTreeMap<String, Input>,
                 BTreeMap<String, Input>,
-                Option<bool>
+                Option<bool>,
             )| {
-                let name = sanitize_db_table_name(name,needs_to_get_quoted.unwrap_or(false))?;
+                let name = sanitize_db_table_name(name, needs_to_get_quoted.unwrap_or(false))?;
 
                 let (old_keys, old_markers, mut old_values) =
                     Self::extract_lua_to_table_fields(old_values, 0)?;
@@ -502,8 +512,14 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.document("needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s");
         methods.add_method(
             "delete",
-            |_, this, (name, check_on, needs_to_get_quoted): (String, BTreeMap<String, Input>,Option<bool>)| {
-                let name = sanitize_db_table_name(name,needs_to_get_quoted.unwrap_or(false))?;
+            |_,
+             this,
+             (name, check_on, needs_to_get_quoted): (
+                String,
+                BTreeMap<String, Input>,
+                Option<bool>,
+            )| {
+                let name = sanitize_db_table_name(name, needs_to_get_quoted.unwrap_or(false))?;
                 let (keys, markers, values) = Self::extract_lua_to_table_fields(check_on, 0)?;
                 let where_parts = keys
                     .into_iter()
