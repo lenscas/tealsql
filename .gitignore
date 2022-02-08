@@ -3,3 +3,9 @@
 /pgteal_cli/tests/*.d.tl
 /pgteal_cli/tests/*.tl
 /tests/*.lua
+/test_cli/cli_test/libpgteal.d
+/test_cli/cli_test/libpgteal.d.tl
+/test_cli/cli_test/libpgteal.so
+/test_cli/cli_test/queries_sql.lua
+/test_cli/cli_test/test.lua
+/test_cli/cli_test/queries_sql.tl
