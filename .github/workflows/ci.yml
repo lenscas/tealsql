@@ -63,8 +63,8 @@ jobs:
       - uses: actions/checkout@v2
       - name: Install PostgreSQL client
         run: |
-          apt-get update
-          apt-get install --yes postgresql-client
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
       - name: Setup database
         run: psql -h postgres -U tealsql -d tealsql -f ./test_cli/setup_db.sql;'
         env:
