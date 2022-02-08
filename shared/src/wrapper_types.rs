@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, convert::TryFrom};
 
 use sqlx_core::postgres::types::PgInterval;
 use tealr::{
@@ -6,6 +6,9 @@ use tealr::{
     TypeName,
 };
 
+use crate::Table;
+
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Interval(pub PgInterval);
 
 impl From<PgInterval> for Interval {
@@ -63,5 +66,39 @@ impl<'lua> tealr::TypeBody for Interval {
             .push((Cow::Borrowed("days"), Cow::Borrowed("integer")));
         gen.fields
             .push((Cow::Borrowed("microseconds"), Cow::Borrowed("integer")));
+    }
+}
+
+fn get_interval_part(value: &Table, index: &str) -> tealr::mlu::mlua::Result<i64> {
+    value.0.get(index).map(|v| {
+        v.as_i64().ok_or_else(|| {
+            tealr::mlu::mlua::Error::FromLuaConversionError {
+                from: "unknown",
+                to: "integer",
+                message: Some(
+                    format!(
+                        "Tried to convert {} to integer while constructing an `Interval` for field `{}`",
+                        serde_json::to_string_pretty(v)
+                            .unwrap_or_else(
+                                |_|"unknown".to_string()
+                            ),
+                        index
+                        )
+                ),
+            }
+        })
+    }).unwrap_or(Ok(0))
+}
+
+impl TryFrom<Table> for Interval {
+    type Error = tealr::mlu::mlua::Error;
+
+    fn try_from(value: Table) -> Result<Self, Self::Error> {
+        Ok(PgInterval {
+            months: get_interval_part(&value, "months")? as i32,
+            days: get_interval_part(&value, "days")? as i32,
+            microseconds: get_interval_part(&value, "microseconds")?,
+        }
+        .into())
     }
 }

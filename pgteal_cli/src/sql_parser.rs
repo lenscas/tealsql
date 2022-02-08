@@ -8,7 +8,6 @@ pub(crate) struct ParsedSql {
 
 pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Error>> {
     let res = read_to_string(file)?;
-
     let possibles = dbg!(res.split(";\n").collect::<Vec<_>>());
 
     let parsed_sql = possibles
@@ -30,13 +29,14 @@ pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Erro
                 .collect::<String>()
                 .replacen("*/", "", 1);
 
-            let params = rest_of_query
+            let mut params = rest_of_query
                 .chars()
                 .fold(
                     (false, Vec::new()),
                     |(is_reading_params, mut params): (bool, Vec<String>), current_char| {
                         if is_reading_params {
                             if current_char.is_whitespace() || current_char == ';' {
+                                params.push("".to_string());
                                 (false, params)
                             } else {
                                 match params.last_mut() {
@@ -55,6 +55,12 @@ pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Erro
                     },
                 )
                 .1;
+            let param = params.pop();
+            if let Some(x) = param {
+                if !x.is_empty() {
+                    params.push(x);
+                }
+            }
             let query = {
                 let mut query = rest_of_query;
 

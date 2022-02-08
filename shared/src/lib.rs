@@ -1,5 +1,6 @@
 mod wrapper_types;
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
+use std::fmt::Debug;
 
 use serde::de::DeserializeOwned;
 use sqlx_core::{
@@ -14,7 +15,7 @@ use sqlx_core::{
     value::Value,
 };
 use tealr::{
-    mlu::mlua::{self, FromLua, Integer, LuaSerdeExt, Number, ToLua},
+    mlu::mlua::{self, FromLua, LuaSerdeExt, Number, ToLua},
     TypeName,
 };
 use uuid::Uuid;
@@ -93,9 +94,43 @@ impl<'lua> FromLua<'lua> for Bool {
         }
     }
 }
+#[derive(Clone, PartialEq, Debug)]
+pub struct Integer(pub i64);
+impl<'lua> ToLua<'lua> for Integer {
+    fn to_lua(self, lua: &'lua mlua::Lua) -> mlua::Result<mlua::Value<'lua>> {
+        self.0.to_lua(lua)
+    }
+}
+impl TypeName for Integer {
+    fn get_type_name(dir: tealr::Direction) -> std::borrow::Cow<'static, str> {
+        i64::get_type_name(dir)
+    }
 
-tealr::create_union_mlua!(pub Derives(PartialEq,Debug) enum Input =  Bool | Integer | Number |  Table | String );
+    fn get_type_kind() -> tealr::KindOfType {
+        i64::get_type_kind()
+    }
 
+    fn collect_children(x: &mut Vec<tealr::TealType>) {
+        i64::collect_children(x)
+    }
+}
+impl<'lua> FromLua<'lua> for Integer {
+    fn from_lua(lua_value: mlua::Value<'lua>, _: &'lua mlua::Lua) -> mlua::Result<Self> {
+        if let mlua::Value::Integer(x) = lua_value {
+            Ok(Integer(x))
+        } else {
+            Err(mlua::Error::FromLuaConversionError {
+                from: lua_value.type_name(),
+                to: "integer",
+                message: None,
+            })
+        }
+    }
+}
+
+tealr::create_union_mlua!(pub Derives(PartialEq,Debug) enum Input =  Bool | Integer | Number | Table | String );
+
+#[derive(Debug)]
 pub enum TypeInformation {
     BOOL,
     CHARINT,
@@ -130,6 +165,18 @@ fn c<'lua, X: ToLua<'lua>>(lua: &'lua mlua::Lua) -> impl Fn(X) -> mlua::Result<m
     move |x| x.to_lua(lua)
 }
 
+#[allow(dead_code)]
+fn cd<'lua, X: ToLua<'lua> + Debug>(
+    lua: &'lua mlua::Lua,
+) -> impl Fn(X) -> mlua::Result<mlua::Value<'lua>> {
+    move |x| {
+        println!("got {x:?}");
+        let res = x.to_lua(lua)?;
+        println!("returning {res:?}");
+        Ok(res)
+    }
+}
+
 fn try_bind<'q, T, X>(
     query: Query<'q, Postgres, PgArguments>,
     value: X,
@@ -154,17 +201,20 @@ where
     }
 }
 
-fn try_json_to_array_of<T: DeserializeOwned>(json: serde_json::Value) -> Result<T, mlua::Error> {
+fn try_json_to_array_of<T: DeserializeOwned>(
+    json: serde_json::Value,
+) -> Result<Vec<T>, mlua::Error> {
     serde_json::from_value(json).map_err(mlua::Error::external)
 }
-fn bind_array_of<
-    'a,
-    T: 'static + DeserializeOwned + Send + Encode<'a, Postgres> + Type<Postgres>,
->(
+fn bind_array_of<'a, T>(
     query: Query<'a, Postgres, PgArguments>,
     data: Table,
-) -> Result<Query<'a, Postgres, PgArguments>, mlua::Error> {
-    let as_vec = try_json_to_array_of::<T>(data.0)?;
+) -> Result<Query<'a, Postgres, PgArguments>, mlua::Error>
+where
+    T: 'static + DeserializeOwned + Send + Debug,
+    Vec<T>: Encode<'a, Postgres> + Type<Postgres>,
+{
+    let as_vec: Vec<T> = try_json_to_array_of::<T>(data.0)?;
     Ok(query.bind(as_vec))
 }
 
@@ -318,27 +368,27 @@ impl TypeInformation {
         info: Option<&PgTypeInfo>,
         mut query: Query<'a, Postgres, PgArguments>,
     ) -> Result<Query<'a, Postgres, PgArguments>, mlua::Error> {
-        let info = TypeInformation::parse_maybe_str(info.map(TypeInfo::name)).ok_or(
+        let info = TypeInformation::parse_maybe_str(info.map(TypeInfo::name)).ok_or_else(|| {
+            let name = info.map(|v| v.name()).unwrap_or("unknown");
             tealr::mlu::mlua::Error::FromLuaConversionError {
                 from: "unknown",
                 to: "unknown",
-                message: Some(format!(
-                    "Don't know how to convert to {}",
-                    info.map(|v| v.name()).unwrap_or("unknown")
-                )),
-            },
-        )?;
+                message: Some(format!("Don't know how to convert to {name}")),
+            }
+        })?;
         query = match (param_type, info) {
             (Some(Input::Bool(x)), TypeInformation::BOOL | TypeInformation::Unknown) => {
                 query.bind(x.0)
             }
-            (Some(Input::Integer(x)), TypeInformation::CHARINT) => try_bind::<i8, _>(query, x)?,
-            (Some(Input::Integer(x)), TypeInformation::SMALLINT) => try_bind::<i16, _>(query, x)?,
-            (Some(Input::Integer(x)), TypeInformation::INT) => try_bind::<i32, _>(query, x)?,
+            (Some(Input::Integer(x)), TypeInformation::CHARINT) => try_bind::<i8, _>(query, x.0)?,
+            (Some(Input::Integer(x)), TypeInformation::SMALLINT) => try_bind::<i16, _>(query, x.0)?,
+            (Some(Input::Integer(x)), TypeInformation::INT) => try_bind::<i32, _>(query, x.0)?,
             (Some(Input::Integer(x)), TypeInformation::BIGINT | TypeInformation::Unknown) => {
-                query.bind(x)
+                query.bind(x.0)
             }
+            (Some(Input::Integer(x)), TypeInformation::REAL) => query.bind(x.0 as f32),
             (Some(Input::Number(x)), TypeInformation::REAL) => query.bind(x as f32),
+            (Some(Input::Integer(x)), TypeInformation::DOUBLE) => query.bind(x.0 as f64),
             (Some(Input::Number(x)), TypeInformation::DOUBLE | TypeInformation::Unknown) => {
                 query.bind(x)
             }
@@ -348,11 +398,12 @@ impl TypeInformation {
             (Some(Input::Table(x)), TypeInformation::JSON | TypeInformation::Unknown) => {
                 query.bind(x.0)
             }
-            (Some(Input::Integer(x)), TypeInformation::MONEY) => query.bind(PgMoney(x)),
+            (Some(Input::Integer(x)), TypeInformation::MONEY) => query.bind(PgMoney(x.0)),
             (None, _) => query.bind::<Option<bool>>(None),
             (Some(Input::String(x)), TypeInformation::UUID) => Uuid::parse_str(&x)
                 .map_err(mlua::Error::external)
                 .map(|v| query.bind(v))?,
+
             (Some(Input::Table(data)), info) => match info {
                 TypeInformation::BOOLArray => bind_array_of::<bool>(query, data)?,
                 TypeInformation::CHARINTArray => bind_array_of::<i8>(query, data)?,
@@ -363,6 +414,10 @@ impl TypeInformation {
                 TypeInformation::DOUBLEArray => bind_array_of::<f64>(query, data)?,
                 TypeInformation::VARCHARArray => bind_array_of::<String>(query, data)?,
                 TypeInformation::JSONArray => bind_array_of::<serde_json::Value>(query, data)?,
+                TypeInformation::INTERVAL => {
+                    let x: Interval = Interval::try_from(data)?;
+                    query.bind::<PgInterval>(x.into())
+                }
                 TypeInformation::MONEYArray => {
                     let res = serde_json::from_value::<Vec<i64>>(data.0)
                         .map_err(mlua::Error::external)?
@@ -371,20 +426,20 @@ impl TypeInformation {
                         .collect::<Vec<_>>();
                     query.bind(res)
                 }
-                _ => {
+                x => {
                     return Err(mlua::Error::FromLuaConversionError {
                         from: "unknown",
                         to: "unknown",
-                        message: None,
-                    })
+                        message: Some(format!("going from table to {x:?}")),
+                    });
                 }
             },
-            (_, _) => {
+            (x, y) => {
                 return Err(mlua::Error::FromLuaConversionError {
                     from: "unknown",
                     to: "unknown",
-                    message: None,
-                })
+                    message: Some(format!("going from: {x:?} to {y:?}")),
+                });
             }
         };
         Ok(query)
