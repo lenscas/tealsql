@@ -10,6 +10,13 @@ on:
 jobs:
   formatting:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        tests :
+          - "cargo fmt --features lua54 --all -- --check"
+          - "cargo fmt --features lua53 --all -- --check"
+          - "cargo fmt --features lua52 --all -- --check"
+          - "cargo fmt --features lua51 --all -- --check"
     steps:
     - uses: actions/checkout@v2
     - uses: hecrj/setup-rust-action@v1
@@ -17,13 +24,16 @@ jobs:
         rust-version: stable
         components: rustfmt
     - name: Formatting check
-      run: cargo fmt --all -- --check
+      run: ${{matrix.tests}}
   clippy:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         tests :
-          - "cargo clippy"
+          - "cargo clippy --features lua54"
+          - "cargo clippy --features lua53"
+          - "cargo clippy --features lua52"
+          - "cargo clippy --features lua51"
     steps:
     - uses: hecrj/setup-rust-action@v1.3.4 
       with:
@@ -34,6 +44,13 @@ jobs:
       run: ${{matrix.tests}}
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        luaVersion :
+          - "5.4"
+          - "5.3"
+          - "5.2"
+          - "5.1"
     services:
       # label used to access the service container
       postgres:
@@ -71,7 +88,7 @@ jobs:
           PGPASSWORD: tealsql
       - uses: leafo/gh-actions-lua@v8.0.0
         with:
-          luaVersion: "5.4"
+          luaVersion: ${{matrix.luaVersion}}
       - uses: leafo/gh-actions-luarocks@v4.0.0
       - name: install teal
         run: luarocks install tl
