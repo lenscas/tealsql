@@ -1,4 +1,4 @@
-use std::{convert::TryInto, ffi::OsString, fmt::Display, path::Path};
+use std::{convert::TryInto, ffi::OsString, fmt::Display, path::Path, slice::from_ref};
 
 use inflector::Inflector;
 use sqlx::{postgres::PgTypeInfo, Column, Executor, Pool, Postgres, TypeInfo};
@@ -15,10 +15,16 @@ pub(crate) struct TealParts {
 }
 
 pub(crate) async fn query_to_teal(pool: Pool<Postgres>, parsed_query: ParsedSql) -> TealParts {
-    let x = pool
-        .describe(&parsed_query.sql)
-        .await
-        .expect("Could not describe sql");
+    let x = pool.describe(&parsed_query.sql).await.unwrap_or_else(|v| {
+        eprintln!("Could not describe query: {}!", parsed_query.name);
+        eprintln!("query:{}", parsed_query.sql);
+        eprintln!(
+            "Detected param amount {} params: {}",
+            parsed_query.params.len(),
+            parsed_query.params.join(" , ")
+        );
+        panic!("{}", v);
+    });
     let iter = x
         .columns()
         .iter()
@@ -27,9 +33,10 @@ pub(crate) async fn query_to_teal(pool: Pool<Postgres>, parsed_query: ParsedSql)
 
     let desc = x.parameters();
     let iter = desc
-        .iter()
+        .into_iter()
         .map(|v| v.left_or_else(|v| panic!("Expected type info, got number: {}", v)))
         .filter(|v| !v.iter().all(|v| v.is_void() || v.is_null()))
+        .flat_map(|v| v.iter())
         .enumerate()
         .map(|(key, pg_type)| {
             let name = parsed_query.params.get(key).unwrap_or_else(|| {
@@ -39,7 +46,7 @@ pub(crate) async fn query_to_teal(pool: Pool<Postgres>, parsed_query: ParsedSql)
                     parsed_query.params.len()
                 )
             });
-            (name.as_str(), pg_type)
+            (name.as_str(), from_ref(pg_type))
         });
     let input_type = create_struct_from_db(iter, &parsed_query.name, "In");
 
@@ -123,7 +130,7 @@ fn make_function(
         (false, false) => format!("{{{}}}", return_type),
     };
     let function_header = format!(
-        "        {} = function (params: {}, connection: Connection): {}",
+        "        {} = function (params: {}, connection: libpgteal.Connection): {}",
         function_type, input_type, return_name
     );
     let params: String = query
@@ -236,7 +243,7 @@ pub(crate) fn write_to_file(
     std::fs::create_dir_all(path.parent().unwrap())?;
 
     let to_write = format!(
-        "local libpgteal = require(\"libpgteal\")\nlocal Connection = libpgteal.Connection\n{}\nreturn {{\n{}\n}}",
+        "local libpgteal = require(\"libpgteal\")\n{}\nreturn {{\n{}\n}}",
         glued_types, modules
     );
     std::fs::write(path, to_write)?;
