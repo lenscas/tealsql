@@ -13,10 +13,7 @@ jobs:
     strategy:
       matrix:
         tests :
-          - "cargo fmt --features lua54 --all -- --check"
-          - "cargo fmt --features lua53 --all -- --check"
-          - "cargo fmt --features lua52 --all -- --check"
-          - "cargo fmt --features lua51 --all -- --check"
+          - "cargo fmt --all -- --check"
     steps:
     - uses: actions/checkout@v2
     - uses: hecrj/setup-rust-action@v1
