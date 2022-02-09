@@ -40,8 +40,8 @@ Tealsql is still in development, but already contains some features that (if you
 | fetch zero or one                          | yes                                                         | no                              | no                              |
 | only execute                               | yes                                                         | no                              | yes                             |
 | manual escapement                          | no                                                          | yes                             | yes                             |
-| lua5.1 support                             | planned                                                     | yes                             | yes                             |
-| lua5.2 support                             | planned                                                     | yes                             | yes                             |
+| lua5.1 support                             | yes                                                         | yes                             | yes                             |
+| lua5.2 support                             | yes                                                         | yes                             | yes                             |
 | lua5.3 support                             | yes                                                         | yes                             | yes                             |
-| lua5.4 support                             | planned                                                     | yes                             | no                              |
+| lua5.4 support                             | yes                                                         | yes                             | no                              |
 | async api support                          | yes                                                         | maybe?                          | maybe?                          |
