@@ -1,17 +1,19 @@
 #!/bin/bash
 
 VERSION_INFO=$(lua -v)
-FEATURE="lua54"
+FEATURE="lua51"
 
-if [[ "$VERSION_INFO" == *"5.3" ]]; then
-    FEATURE="lua53"
-elif [[ "$VERSION_INFO" == *"5.2" ]]; then
-    FEATURE="lua52"
-elif [[ "$VERSION_INFO" == *"5.1" ]]; then
-    FEATURE="lua51"
-else
+if [[ "$VERSION_INFO" == *"5.4"* ]]; then
     FEATURE="lua54"
+elif [[ "$VERSION_INFO" == *"5.3"* ]]; then
+    FEATURE="lua53"
+elif [[ "$VERSION_INFO" == *"5.2"* ]]; then
+    FEATURE="lua52"
+else
+    FEATURE="lua51"
 fi
+
+echo $FEATURE
 
 cd pgteal_cli
 cargo build --features $FEATURE
