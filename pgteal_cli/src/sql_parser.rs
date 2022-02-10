@@ -1,4 +1,13 @@
-use std::{collections::HashMap, error::Error, fs::read_to_string, path::Path};
+use std::{collections::HashMap, error::Error, fmt::Display, fs::read_to_string, path::Path, };
+
+use anyhow::Context;
+
+fn show_config(config: &HashMap<String, String>) -> String {
+    config
+        .iter()
+        .map(|(key, value)| format!("{key} = {value}\n"))
+        .collect::<String>()
+}
 
 pub(crate) struct ParsedSql {
     pub sql: String,
@@ -19,54 +28,161 @@ enum ParserState {
     SearchingParamStart { in_string: bool, escape_next: bool },
     FoundParam { param_name: String, in_string: bool },
 }
-fn create_error(
+#[derive(Debug)]
+enum ParseErrors {
+    UnexpectedChar {
+        expected: Vec<String>,
+        got_char: char,
+        at_line: u32,
+        at_char: u32,
+        state: ParserState,
+    },
+    DuplicateConfigKey {
+        duplicate_key: String,
+        config: HashMap<String, String>,
+        duplicate_at: u32,
+    },
+    NoNameInConfig {
+        config: HashMap<String, String>,
+        query: String,
+    },
+}
+impl Error for ParseErrors {}
+impl Display for ParseErrors {
+    fn fmt(&self, x: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        match self {
+            ParseErrors::UnexpectedChar {
+                expected,
+                got_char,
+                at_line,
+                at_char,
+                state: _state,
+            } => write!(
+                x,
+                "Expected `{}`. Got {}. At line: {}, character: {}.",
+                expected.join("` , `"),
+                got_char,
+                at_line,
+                at_char,
+            ),
+            ParseErrors::DuplicateConfigKey {
+                duplicate_key,
+                config,
+                duplicate_at,
+            } => write!(
+                x,
+                "Duplicate key `{duplicate_key}`, duplicate at line: {duplicate_at}.\nConfig:\n{}",
+                show_config(config)
+            ),
+            ParseErrors::NoNameInConfig { config, query } => {
+                let similar_names = config
+                    .iter()
+                    .filter(|(key, _)| key.to_lowercase() == "name")
+                    .collect::<Vec<_>>();
+                if similar_names.is_empty() {
+                    write!(
+                        x,
+                        "No name found in config for query.\nConfig:\n{}\nParsed Query:{}\n",
+                        show_config(config),
+                        query
+                    )
+                } else {
+                    write!(
+                        x,
+                        "No name found in config for query.\nConfig:\n{}\nParsed Query:{}\n\nNote: Values found with a similar name:\n{}",
+                        show_config(config),
+                        query, 
+                        similar_names.iter().map(|(key,value)| format!("{key} = {value}\n")).collect::<String>()
+                    )
+                }
+            }
+        }
+    }
+}
+
+fn create_unexpected_char(
     got_char: char,
     expected: &[&str],
     at_line: u32,
     at_char: u32,
-    state: &ParserState,
-    debug: bool,
-) -> ParserState {
-    panic!(
-        "Expected `{}`. Got {}. AtLine: {}, character: {}. {}",
-        expected.join(" , "),
+    state: ParserState,
+) -> Result<ParserState, ParseErrors> {
+    Err(ParseErrors::UnexpectedChar {
         got_char,
+        expected: expected.iter().map(|v| v.to_string()).collect(),
         at_line,
         at_char,
-        if debug {
-            format!("State: {:?}", state)
-        } else {
-            "".to_string()
-        }
-    );
+        state,
+    })
 }
 fn try_construct_parsed_sql(
     mut config: HashMap<String, String>,
     sql: String,
     params: Vec<String>,
-) -> ParsedSql {
-    let name = config.remove("name").unwrap_or_else(|| {
-        panic!(
-            "Config for query did not contain name. Found config: {}",
-            config
-                .iter()
-                .map(|(k, v)| format!("{k} = {v}\n"))
-                .collect::<String>()
-        )
-    });
-    ParsedSql { name, sql, params }
+) -> Result<ParsedSql, ParseErrors> {
+    let name = config
+        .remove("name")
+        .ok_or_else(|| ParseErrors::NoNameInConfig {
+            config,
+            query: sql.clone(),
+        })?;
+    Ok(ParsedSql { name, sql, params })
 }
-pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Error>> {
+pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, anyhow::Error> {
     let res = read_to_string(file)?;
+    parse_sql(res).with_context(||format!("Error in file: {}",file.to_string_lossy()))
+}
+
+#[derive(Default)]
+struct QueryData {
+    config:HashMap<String,String>,
+    params:Vec<String>,
+    sql:String
+}
+impl QueryData {
+    fn push_char_to_sql(&mut self,ch : char) {
+        self.sql.push(ch)
+    }
+    fn try_construct_parsed_sql(&mut self, query_store:&mut Vec<ParsedSql>) -> Result<(),ParseErrors> {
+        let this = std::mem::take(self);
+        query_store.push(try_construct_parsed_sql(this.config, this.sql, this.params)?);
+        Ok(())
+    }
+    fn add_param(&mut self, param:String) {
+        self.params.push(param);
+        self.sql.push('$');
+        self.sql.push_str(&self.params.len().to_string());
+    } 
+    fn add_to_config(mut self, name: String, value:String,at:u32) -> Result<Self,ParseErrors> {
+        let duplicate = match self.config.entry(name) {
+            std::collections::hash_map::Entry::Occupied(x) => Some(x.key().to_owned()),
+            std::collections::hash_map::Entry::Vacant(x) => {
+                x.insert(value);
+                None
+            }
+        };
+        match duplicate {
+            None =>Ok(self),
+            Some(x) => Err(
+                ParseErrors::DuplicateConfigKey {
+                config:self.config,
+                duplicate_at:at,
+                duplicate_key:x
+            }),
+            
+        }
+    }
+}
+
+
+fn parse_sql(sql_file_contents: String) -> Result<Vec<ParsedSql>, anyhow::Error> {
     let mut state = ParserState::Searching;
     let mut at_line = 1;
     let mut at_char = 0;
     let mut found_queries: Vec<ParsedSql> = Vec::new();
-    let mut query_config = HashMap::new();
-    let mut query_params = Vec::new();
-    let mut qeuery_sql = String::new();
-    let mut query_param_count: u32 = 0;
-    for char in res.chars() {
+
+    let mut query_data : QueryData = Default::default();
+    for char in sql_file_contents.chars() {
         at_char += 1;
         if char == '\n' {
             at_line += 1;
@@ -74,7 +190,7 @@ pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Erro
         }
         let current_state = state.clone();
         let create_error =
-            move |expected| create_error(char, expected, at_line, at_char, &current_state, true);
+            move |expected| create_unexpected_char(char, expected, at_line, at_char, current_state);
         state = match state {
             ParserState::Searching => {
                 if char == '/' {
@@ -84,19 +200,21 @@ pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Erro
                 } else if char.is_whitespace() {
                     ParserState::Searching
                 } else {
-                    create_error(&["/"])
+                    create_error(&["/"])?
                 }
             }
             ParserState::ParseCommentPart => {
                 if char == '*' {
                     ParserState::InConfigComment
                 } else {
-                    create_error(&["*"])
+                    create_error(&["*"])?
                 }
             }
             ParserState::InConfigComment => {
                 if char == '@' {
                     ParserState::ParsingName(String::new())
+                } else if char == '*' {
+                    ParserState::ParseEndComment
                 } else {
                     ParserState::InConfigComment
                 }
@@ -109,7 +227,7 @@ pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Erro
                 } else if char.is_whitespace() {
                     ParserState::SearchingSeparator(x)
                 } else {
-                    create_error(&["name", "whitespace", "="])
+                    create_error(&["name", "whitespace", "="])?
                 }
             }
             ParserState::SearchingSeparator(x) => {
@@ -118,7 +236,7 @@ pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Erro
                 } else if char.is_whitespace() {
                     ParserState::SearchingSeparator(x)
                 } else {
-                    create_error(&["=", "whitespace"])
+                    create_error(&["=", "whitespace"])?
                 }
             }
             ParserState::SearchingValue(x) => {
@@ -130,7 +248,7 @@ pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Erro
                 } else if char.is_whitespace() {
                     ParserState::SearchingValue(x)
                 } else {
-                    create_error(&["alphanumeric", "_", "whitespace"])
+                    create_error(&["alphanumeric", "_", "whitespace"])?
                 }
             }
             ParserState::ParsingValue { name, value } => {
@@ -140,15 +258,12 @@ pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Erro
                         value: value + &char.to_string(),
                     }
                 } else if char.is_whitespace() {
-                    if query_config.contains_key(&name) {
-                        panic!("Duplicate key {}, duplicate at line: {at_line}", name)
-                    }
-                    query_config.insert(name, value);
-                    ParserState::Searching
+                    query_data = query_data.add_to_config(name, value, at_line)?;
+                    ParserState::InConfigComment
                 } else if char == '*' {
                     ParserState::ParseEndComment
                 } else {
-                    create_error(&["alphanumeric", "_", "whitespace", "*"])
+                    create_error(&["alphanumeric", "_", "whitespace", "*"])?
                 }
             }
             ParserState::ParseEndComment => {
@@ -158,7 +273,7 @@ pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Erro
                         escape_next: false,
                     }
                 } else {
-                    create_error(&["/"])
+                    ParserState::InConfigComment
                 }
             }
             ParserState::SearchingParamStart {
@@ -167,12 +282,13 @@ pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Erro
             } => {
                 if escape_next {
                     if char == ':' {
-                        qeuery_sql.push(':');
+                        query_data.push_char_to_sql(':');
+                        //query_sql.push(':');
                     } else if char == '\\' {
-                        qeuery_sql.push('\\');
+                        query_data.push_char_to_sql('\\');
                     } else {
-                        qeuery_sql.push('\\');
-                        qeuery_sql.push(char);
+                        query_data.push_char_to_sql('\\');
+                        query_data.push_char_to_sql(char);
                     }
                     ParserState::SearchingParamStart {
                         in_string,
@@ -185,28 +301,17 @@ pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Erro
                     }
                 } else if char == ';' {
                     if in_string {
-                        qeuery_sql.push(';');
+                        query_data.push_char_to_sql(';');
                         ParserState::SearchingParamStart {
                             in_string,
                             escape_next,
                         }
                     } else {
-                        qeuery_sql.push(';');
-                        found_queries.push(try_construct_parsed_sql(
-                            query_config,
-                            qeuery_sql,
-                            query_params,
-                        ));
-                        query_config = Default::default();
-                        qeuery_sql = Default::default();
-                        query_params = Default::default();
-                        query_param_count = 0;
+                        query_data.push_char_to_sql(';');
+                        query_data.try_construct_parsed_sql(&mut found_queries)?;
                         ParserState::Searching
                     }
                 } else if char == ':' {
-                    query_param_count += 1;
-                    qeuery_sql.push('$');
-                    qeuery_sql.push_str(&query_param_count.to_string());
                     ParserState::FoundParam {
                         in_string,
                         param_name: String::new(),
@@ -217,7 +322,7 @@ pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Erro
                         in_string: !in_string,
                     }
                 } else {
-                    qeuery_sql.push(char);
+                    query_data.push_char_to_sql(char);
                     ParserState::SearchingParamStart {
                         escape_next,
                         in_string,
@@ -234,8 +339,8 @@ pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Erro
                         param_name: param_name + &char.to_string(),
                     }
                 } else {
-                    qeuery_sql.push(char);
-                    query_params.push(param_name);
+                    query_data.add_param(param_name);
+                    query_data.push_char_to_sql(char);
                     if char == ';' {
                         if in_string {
                             ParserState::SearchingParamStart {
@@ -243,15 +348,7 @@ pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Erro
                                 escape_next: false,
                             }
                         } else {
-                            found_queries.push(try_construct_parsed_sql(
-                                query_config,
-                                qeuery_sql,
-                                query_params,
-                            ));
-                            query_config = Default::default();
-                            qeuery_sql = Default::default();
-                            query_params = Default::default();
-                            query_param_count = 0;
+                            query_data.try_construct_parsed_sql(&mut found_queries)?;
                             ParserState::Searching
                         }
                     } else if char == '\'' {

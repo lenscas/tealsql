@@ -1,5 +1,5 @@
 /* 
-    @name= get_all 
+    @name= get_all
 */
 SELECT *
 FROM everything;
