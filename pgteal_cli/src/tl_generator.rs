@@ -41,8 +41,8 @@ pub(crate) async fn query_to_teal(pool: Pool<Postgres>, parsed_query: ParsedSql)
         .map(|(key, pg_type)| {
             let name = parsed_query.params.get(key).unwrap_or_else(|| {
                 panic!(
-                    "The query needs more parameter than have been provided? Needed: {}, got: {}",
-                    key,
+                    "The query needs more parameter than have been provided. Needed at least: {}, got: {}",
+                    key + 1,
                     parsed_query.params.len()
                 )
             });
