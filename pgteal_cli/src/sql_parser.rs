@@ -1,4 +1,13 @@
-use std::{error::Error, fs::read_to_string, path::Path};
+use std::{collections::HashMap, error::Error, fmt::Display, fs::read_to_string, path::Path};
+
+use anyhow::Context;
+
+fn show_config(config: &HashMap<String, String>) -> String {
+    config
+        .iter()
+        .map(|(key, value)| format!("{key} = {value}\n"))
+        .collect::<String>()
+}
 
 pub(crate) struct ParsedSql {
     pub sql: String,
@@ -6,78 +15,365 @@ pub(crate) struct ParsedSql {
     pub params: Vec<String>,
 }
 
-pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, Box<dyn Error>> {
-    let res = read_to_string(file)?;
-    let possibles = dbg!(res.split(";\n").collect::<Vec<_>>());
-
-    let parsed_sql = possibles
-        .into_iter()
-        .map(|possible| {
-            let mut split = possible.split("*/");
-            let first_part = split.next().expect("Could not find name comment");
-            let name = first_part
-                .split("/* @name=")
-                .nth(1)
-                .map(|v| v.trim().to_owned())
-                .expect("could not find name comment");
-            let rest_of_query = split
-                .map(ToOwned::to_owned)
-                .map(|mut v| {
-                    v.push_str("*/");
-                    v
-                })
-                .collect::<String>()
-                .replacen("*/", "", 1);
-
-            let mut params = rest_of_query
-                .chars()
-                .fold(
-                    (false, Vec::new()),
-                    |(is_reading_params, mut params): (bool, Vec<String>), current_char| {
-                        if is_reading_params {
-                            if current_char.is_whitespace() || current_char == ';' {
-                                params.push("".to_string());
-                                (false, params)
-                            } else {
-                                match params.last_mut() {
-                                    Some(x) => {
-                                        x.push(current_char);
-                                    }
-                                    None => {
-                                        params.push(current_char.to_string());
-                                    }
-                                };
-                                (true, params)
-                            }
-                        } else {
-                            (current_char == ':', params)
-                        }
-                    },
-                )
-                .1;
-            let param = params.pop();
-            if let Some(x) = param {
-                if !x.is_empty() {
-                    params.push(x);
+#[derive(Debug, Clone)]
+enum ParserState {
+    Searching,
+    ParseCommentPart,
+    InConfigComment,
+    ParsingName(String),
+    SearchingSeparator(String),
+    SearchingValue(String),
+    ParsingValue { name: String, value: String },
+    ParseEndComment,
+    SearchingParamStart { in_string: bool, escape_next: bool },
+    FoundParam { param_name: String, in_string: bool },
+}
+#[derive(Debug)]
+enum ParseErrors {
+    UnexpectedChar {
+        expected: Vec<String>,
+        got_char: char,
+        at_line: u32,
+        at_char: u32,
+        state: ParserState,
+    },
+    DuplicateConfigKey {
+        duplicate_key: String,
+        config: HashMap<String, String>,
+        duplicate_at: u32,
+    },
+    NoNameInConfig {
+        config: HashMap<String, String>,
+        query: String,
+    },
+}
+impl Error for ParseErrors {}
+impl Display for ParseErrors {
+    fn fmt(&self, x: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        match self {
+            ParseErrors::UnexpectedChar {
+                expected,
+                got_char,
+                at_line,
+                at_char,
+                state: _state,
+            } => write!(
+                x,
+                "Expected `{}`. Got {}. At line: {}, character: {}.",
+                expected.join("` , `"),
+                got_char,
+                at_line,
+                at_char,
+            ),
+            ParseErrors::DuplicateConfigKey {
+                duplicate_key,
+                config,
+                duplicate_at,
+            } => write!(
+                x,
+                "Duplicate key `{duplicate_key}`, duplicate at line: {duplicate_at}.\nConfig:\n{}",
+                show_config(config)
+            ),
+            ParseErrors::NoNameInConfig { config, query } => {
+                let similar_names = config
+                    .iter()
+                    .filter(|(key, _)| key.to_lowercase() == "name")
+                    .collect::<Vec<_>>();
+                if similar_names.is_empty() {
+                    write!(
+                        x,
+                        "No name found in config for query.\nConfig:\n{}\nParsed Query:{}\n",
+                        show_config(config),
+                        query
+                    )
+                } else {
+                    write!(
+                        x,
+                        "No name found in config for query.\nConfig:\n{}\nParsed Query:{}\n\nNote: Values found with a similar name:\n{}",
+                        show_config(config),
+                        query,
+                        similar_names.iter().map(|(key,value)| format!("{key} = {value}\n")).collect::<String>()
+                    )
                 }
             }
-            let query = {
-                let mut query = rest_of_query;
+        }
+    }
+}
 
-                params
-                    .iter()
-                    .map(|v| format!(":{}", v))
-                    .enumerate()
-                    .for_each(|(at, name)| query = query.replace(&name, &format!("${}", at + 1)));
-                query
-            };
-            ParsedSql {
-                sql: query,
-                name,
-                params,
+fn create_unexpected_char(
+    got_char: char,
+    expected: &[&str],
+    at_line: u32,
+    at_char: u32,
+    state: ParserState,
+) -> Result<ParserState, ParseErrors> {
+    Err(ParseErrors::UnexpectedChar {
+        got_char,
+        expected: expected.iter().map(|v| v.to_string()).collect(),
+        at_line,
+        at_char,
+        state,
+    })
+}
+fn try_construct_parsed_sql(
+    mut config: HashMap<String, String>,
+    sql: String,
+    params: Vec<String>,
+) -> Result<ParsedSql, ParseErrors> {
+    let name = config
+        .remove("name")
+        .ok_or_else(|| ParseErrors::NoNameInConfig {
+            config,
+            query: sql.clone(),
+        })?;
+    Ok(ParsedSql { name, sql, params })
+}
+pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, anyhow::Error> {
+    let res = read_to_string(file)?;
+    parse_sql(res).with_context(|| format!("Error in file: {}", file.to_string_lossy()))
+}
+
+#[derive(Default)]
+struct QueryData {
+    config: HashMap<String, String>,
+    params: Vec<String>,
+    sql: String,
+}
+impl QueryData {
+    fn push_char_to_sql(&mut self, ch: char) {
+        self.sql.push(ch)
+    }
+    fn try_construct_parsed_sql(
+        &mut self,
+        query_store: &mut Vec<ParsedSql>,
+    ) -> Result<(), ParseErrors> {
+        let this = std::mem::take(self);
+        query_store.push(try_construct_parsed_sql(
+            this.config,
+            this.sql,
+            this.params,
+        )?);
+        Ok(())
+    }
+    fn add_param(&mut self, param: String) {
+        self.params.push(param);
+        self.sql.push('$');
+        self.sql.push_str(&self.params.len().to_string());
+    }
+    fn add_to_config(mut self, name: String, value: String, at: u32) -> Result<Self, ParseErrors> {
+        let duplicate = match self.config.entry(name) {
+            std::collections::hash_map::Entry::Occupied(x) => Some(x.key().to_owned()),
+            std::collections::hash_map::Entry::Vacant(x) => {
+                x.insert(value);
+                None
             }
-        })
-        .collect();
+        };
+        match duplicate {
+            None => Ok(self),
+            Some(x) => Err(ParseErrors::DuplicateConfigKey {
+                config: self.config,
+                duplicate_at: at,
+                duplicate_key: x,
+            }),
+        }
+    }
+}
 
-    Ok(parsed_sql)
+fn parse_sql(sql_file_contents: String) -> Result<Vec<ParsedSql>, anyhow::Error> {
+    let mut state = ParserState::Searching;
+    let mut at_line = 1;
+    let mut at_char = 0;
+    let mut found_queries: Vec<ParsedSql> = Vec::new();
+
+    let mut query_data: QueryData = Default::default();
+    for char in sql_file_contents.chars() {
+        at_char += 1;
+        if char == '\n' {
+            at_line += 1;
+            at_char = 0;
+        }
+        let current_state = state.clone();
+        let create_error =
+            move |expected| create_unexpected_char(char, expected, at_line, at_char, current_state);
+        state = match state {
+            ParserState::Searching => {
+                if char == '/' {
+                    ParserState::ParseCommentPart
+                } else if char == '*' {
+                    ParserState::ParseEndComment
+                } else if char.is_whitespace() {
+                    ParserState::Searching
+                } else {
+                    create_error(&["/"])?
+                }
+            }
+            ParserState::ParseCommentPart => {
+                if char == '*' {
+                    ParserState::InConfigComment
+                } else {
+                    create_error(&["*"])?
+                }
+            }
+            ParserState::InConfigComment => {
+                if char == '@' {
+                    ParserState::ParsingName(String::new())
+                } else if char == '*' {
+                    ParserState::ParseEndComment
+                } else {
+                    ParserState::InConfigComment
+                }
+            }
+            ParserState::ParsingName(x) => {
+                if char.is_alphanumeric() {
+                    ParserState::ParsingName(x + &char.to_string())
+                } else if char == '=' {
+                    ParserState::SearchingValue(x)
+                } else if char.is_whitespace() {
+                    ParserState::SearchingSeparator(x)
+                } else {
+                    create_error(&["name", "whitespace", "="])?
+                }
+            }
+            ParserState::SearchingSeparator(x) => {
+                if char == '=' {
+                    ParserState::SearchingValue(x)
+                } else if char.is_whitespace() {
+                    ParserState::SearchingSeparator(x)
+                } else {
+                    create_error(&["=", "whitespace"])?
+                }
+            }
+            ParserState::SearchingValue(x) => {
+                if char.is_alphanumeric() || char == '_' {
+                    ParserState::ParsingValue {
+                        name: x,
+                        value: char.to_string(),
+                    }
+                } else if char.is_whitespace() {
+                    ParserState::SearchingValue(x)
+                } else {
+                    create_error(&["alphanumeric", "_", "whitespace"])?
+                }
+            }
+            ParserState::ParsingValue { name, value } => {
+                if char.is_alphanumeric() || char == '_' {
+                    ParserState::ParsingValue {
+                        name,
+                        value: value + &char.to_string(),
+                    }
+                } else if char.is_whitespace() {
+                    query_data = query_data.add_to_config(name, value, at_line)?;
+                    ParserState::InConfigComment
+                } else if char == '*' {
+                    ParserState::ParseEndComment
+                } else {
+                    create_error(&["alphanumeric", "_", "whitespace", "*"])?
+                }
+            }
+            ParserState::ParseEndComment => {
+                if char == '/' {
+                    ParserState::SearchingParamStart {
+                        in_string: false,
+                        escape_next: false,
+                    }
+                } else {
+                    ParserState::InConfigComment
+                }
+            }
+            ParserState::SearchingParamStart {
+                in_string,
+                escape_next,
+            } => {
+                if escape_next {
+                    if char == ':' {
+                        query_data.push_char_to_sql(':');
+                        //query_sql.push(':');
+                    } else if char == '\\' {
+                        query_data.push_char_to_sql('\\');
+                    } else {
+                        query_data.push_char_to_sql('\\');
+                        query_data.push_char_to_sql(char);
+                    }
+                    ParserState::SearchingParamStart {
+                        in_string,
+                        escape_next: false,
+                    }
+                } else if char == '\\' {
+                    ParserState::SearchingParamStart {
+                        in_string,
+                        escape_next: true,
+                    }
+                } else if char == ';' {
+                    if in_string {
+                        query_data.push_char_to_sql(';');
+                        ParserState::SearchingParamStart {
+                            in_string,
+                            escape_next,
+                        }
+                    } else {
+                        query_data.push_char_to_sql(';');
+                        query_data.try_construct_parsed_sql(&mut found_queries)?;
+                        ParserState::Searching
+                    }
+                } else if char == ':' {
+                    ParserState::FoundParam {
+                        in_string,
+                        param_name: String::new(),
+                    }
+                } else if char == '\'' {
+                    ParserState::SearchingParamStart {
+                        escape_next,
+                        in_string: !in_string,
+                    }
+                } else {
+                    query_data.push_char_to_sql(char);
+                    ParserState::SearchingParamStart {
+                        escape_next,
+                        in_string,
+                    }
+                }
+            }
+            ParserState::FoundParam {
+                in_string,
+                param_name,
+            } => {
+                if char.is_alphanumeric() {
+                    ParserState::FoundParam {
+                        in_string,
+                        param_name: param_name + &char.to_string(),
+                    }
+                } else {
+                    query_data.add_param(param_name);
+                    query_data.push_char_to_sql(char);
+                    if char == ';' {
+                        if in_string {
+                            ParserState::SearchingParamStart {
+                                in_string,
+                                escape_next: false,
+                            }
+                        } else {
+                            query_data.try_construct_parsed_sql(&mut found_queries)?;
+                            ParserState::Searching
+                        }
+                    } else if char == '\'' {
+                        ParserState::SearchingParamStart {
+                            in_string: !in_string,
+                            escape_next: false,
+                        }
+                    } else if char == '\\' {
+                        ParserState::SearchingParamStart {
+                            in_string,
+                            escape_next: true,
+                        }
+                    } else {
+                        ParserState::SearchingParamStart {
+                            in_string,
+                            escape_next: false,
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(found_queries)
 }

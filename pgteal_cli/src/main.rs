@@ -12,7 +12,7 @@ use crate::{
 };
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), anyhow::Error> {
     let Params {
         teal_pattern,
         sql_pattern,
@@ -31,7 +31,7 @@ async fn main() {
         let mut parsed = Vec::new();
         let file = match file {
             Ok(file) => {
-                let parsed_sql = parse_sql_file(&file).unwrap();
+                let parsed_sql = parse_sql_file(&file)?;
                 for parsed_query in parsed_sql {
                     parsed.push(query_to_teal(pool.clone(), parsed_query).await);
                 }
@@ -41,4 +41,5 @@ async fn main() {
         };
         tl_generator::write_to_file(file.as_path(), &teal_pattern, parsed).unwrap();
     }
+    Ok(())
 }
