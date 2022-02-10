@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error, fmt::Display, fs::read_to_string, path::Path, };
+use std::{collections::HashMap, error::Error, fmt::Display, fs::read_to_string, path::Path};
 
 use anyhow::Context;
 
@@ -91,7 +91,7 @@ impl Display for ParseErrors {
                         x,
                         "No name found in config for query.\nConfig:\n{}\nParsed Query:{}\n\nNote: Values found with a similar name:\n{}",
                         show_config(config),
-                        query, 
+                        query,
                         similar_names.iter().map(|(key,value)| format!("{key} = {value}\n")).collect::<String>()
                     )
                 }
@@ -130,30 +130,37 @@ fn try_construct_parsed_sql(
 }
 pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, anyhow::Error> {
     let res = read_to_string(file)?;
-    parse_sql(res).with_context(||format!("Error in file: {}",file.to_string_lossy()))
+    parse_sql(res).with_context(|| format!("Error in file: {}", file.to_string_lossy()))
 }
 
 #[derive(Default)]
 struct QueryData {
-    config:HashMap<String,String>,
-    params:Vec<String>,
-    sql:String
+    config: HashMap<String, String>,
+    params: Vec<String>,
+    sql: String,
 }
 impl QueryData {
-    fn push_char_to_sql(&mut self,ch : char) {
+    fn push_char_to_sql(&mut self, ch: char) {
         self.sql.push(ch)
     }
-    fn try_construct_parsed_sql(&mut self, query_store:&mut Vec<ParsedSql>) -> Result<(),ParseErrors> {
+    fn try_construct_parsed_sql(
+        &mut self,
+        query_store: &mut Vec<ParsedSql>,
+    ) -> Result<(), ParseErrors> {
         let this = std::mem::take(self);
-        query_store.push(try_construct_parsed_sql(this.config, this.sql, this.params)?);
+        query_store.push(try_construct_parsed_sql(
+            this.config,
+            this.sql,
+            this.params,
+        )?);
         Ok(())
     }
-    fn add_param(&mut self, param:String) {
+    fn add_param(&mut self, param: String) {
         self.params.push(param);
         self.sql.push('$');
         self.sql.push_str(&self.params.len().to_string());
-    } 
-    fn add_to_config(mut self, name: String, value:String,at:u32) -> Result<Self,ParseErrors> {
+    }
+    fn add_to_config(mut self, name: String, value: String, at: u32) -> Result<Self, ParseErrors> {
         let duplicate = match self.config.entry(name) {
             std::collections::hash_map::Entry::Occupied(x) => Some(x.key().to_owned()),
             std::collections::hash_map::Entry::Vacant(x) => {
@@ -162,18 +169,15 @@ impl QueryData {
             }
         };
         match duplicate {
-            None =>Ok(self),
-            Some(x) => Err(
-                ParseErrors::DuplicateConfigKey {
-                config:self.config,
-                duplicate_at:at,
-                duplicate_key:x
+            None => Ok(self),
+            Some(x) => Err(ParseErrors::DuplicateConfigKey {
+                config: self.config,
+                duplicate_at: at,
+                duplicate_key: x,
             }),
-            
         }
     }
 }
-
 
 fn parse_sql(sql_file_contents: String) -> Result<Vec<ParsedSql>, anyhow::Error> {
     let mut state = ParserState::Searching;
@@ -181,7 +185,7 @@ fn parse_sql(sql_file_contents: String) -> Result<Vec<ParsedSql>, anyhow::Error>
     let mut at_char = 0;
     let mut found_queries: Vec<ParsedSql> = Vec::new();
 
-    let mut query_data : QueryData = Default::default();
+    let mut query_data: QueryData = Default::default();
     for char in sql_file_contents.chars() {
         at_char += 1;
         if char == '\n' {
