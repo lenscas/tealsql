@@ -22,5 +22,6 @@
 		"tealsql",
 		"vals",
 		"VARCHAR"
-	]
+	],
+	"rust-analyzer.cargo.features": ["lua54"]
 }
