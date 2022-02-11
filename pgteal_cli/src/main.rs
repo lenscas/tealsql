@@ -18,7 +18,13 @@ async fn main() -> Result<(), anyhow::Error> {
         teal_pattern,
         sql_pattern,
         connection_string,
-    } = get_app();
+    } = match get_app()? {
+        app::Action::ParseFiles(x) => x,
+        app::Action::PrintConfig(x) => {
+            println!("{}", toml::to_string_pretty(&x)?);
+            return Ok(());
+        }
+    };
 
     let pool = PgPool::connect(&connection_string).await?;
 
