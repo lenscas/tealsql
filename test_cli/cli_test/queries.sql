@@ -28,7 +28,7 @@ SET
     money1=:money1 ,
     json1=:json1 ,
     int4array= :int4array, 
-    interval1= :interval1 
+    interval1= :interval1
 WHERE "varchar1"= :varchar1;
 
 /* @name= delete_row */
