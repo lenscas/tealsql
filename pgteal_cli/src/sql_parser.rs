@@ -13,6 +13,10 @@ pub(crate) struct ParsedSql {
     pub sql: String,
     pub name: String,
     pub params: Vec<String>,
+    pub create_execute: bool,
+    pub create_fetch_optional: bool,
+    pub create_fetch_one: bool,
+    pub create_fetch_all: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +49,12 @@ enum ParseErrors {
     NoNameInConfig {
         config: HashMap<String, String>,
         query: String,
+    },
+    InvalidConfigValue {
+        query: String,
+        name: String,
+        value: String,
+        expected: Vec<String>,
     },
 }
 impl Error for ParseErrors {}
@@ -96,6 +106,16 @@ impl Display for ParseErrors {
                     )
                 }
             }
+            ParseErrors::InvalidConfigValue {
+                query,
+                value,
+                expected,
+                name,
+            } => write!(
+                x,
+                "Invalid value for field `{name}` in query: `{query}`. Got `{value}`, expected one of: `{}`",
+                expected.join("` , `")
+            ),
         }
     }
 }
@@ -115,18 +135,42 @@ fn create_unexpected_char(
         state,
     })
 }
+
+fn get_should_create_function(
+    config: &HashMap<String, String>,
+    field: &str,
+    name: &str,
+) -> Result<bool, ParseErrors> {
+    match config.get(field).map(|v| v.as_str()) {
+        Some("true") | None => Ok(true),
+        Some("false") => Ok(false),
+        Some(x) => Err(ParseErrors::InvalidConfigValue {
+            query: name.to_string(),
+            name: field.to_string(),
+            value: x.to_string(),
+            expected: vec!["true".to_string(), "false".to_string()],
+        }),
+    }
+}
+
 fn try_construct_parsed_sql(
     mut config: HashMap<String, String>,
     sql: String,
     params: Vec<String>,
 ) -> Result<ParsedSql, ParseErrors> {
-    let name = config
-        .remove("name")
-        .ok_or_else(|| ParseErrors::NoNameInConfig {
-            config,
-            query: sql.clone(),
-        })?;
-    Ok(ParsedSql { name, sql, params })
+    let name = match config.remove("name") {
+        Some(x) => x,
+        None => return Err(ParseErrors::NoNameInConfig { config, query: sql }),
+    };
+    Ok(ParsedSql {
+        sql,
+        params,
+        create_execute: get_should_create_function(&config, "create_execute", &name)?,
+        create_fetch_optional: get_should_create_function(&config, "create_fetch_optional", &name)?,
+        create_fetch_one: get_should_create_function(&config, "create_fetch_one", &name)?,
+        create_fetch_all: get_should_create_function(&config, "create_fetch_all", &name)?,
+        name,
+    })
 }
 pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, anyhow::Error> {
     let res = read_to_string(file)?;
@@ -224,14 +268,14 @@ fn parse_sql(sql_file_contents: String) -> Result<Vec<ParsedSql>, anyhow::Error>
                 }
             }
             ParserState::ParsingName(x) => {
-                if char.is_alphanumeric() {
+                if char.is_alphanumeric() || char == '_' {
                     ParserState::ParsingName(x + &char.to_string())
                 } else if char == '=' {
                     ParserState::SearchingValue(x)
                 } else if char.is_whitespace() {
                     ParserState::SearchingSeparator(x)
                 } else {
-                    create_error(&["name", "whitespace", "="])?
+                    create_error(&["name", "_", "whitespace", "="])?
                 }
             }
             ParserState::SearchingSeparator(x) => {
