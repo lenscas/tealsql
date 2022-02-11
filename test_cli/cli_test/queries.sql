@@ -1,17 +1,26 @@
 /* 
     @name= get_all
+    @create_fetch_one= false
+    @create_fetch_optional= false
+    @create_execute = false
 */
 SELECT *
 FROM everything;
 /*
     this query gets a single row where "varchar1" = ':getBy'
-    @name= get_by_string 
+    @name= get_by_string
+    @create_fetch_all= false
 */
 SELECT *
 FROM everything
 WHERE "varchar1" = :getBy;
 
-/* @name= insert_first_row */
+/*
+    @name= insert_first_row
+    @create_fetch_one= false
+    @create_fetch_optional= false
+    @create_fetch_all= false
+*/
 INSERT INTO everything 
     (varchar1,bigint1,uuid1,character1,float41,money1,json1,int4array,interval1) 
 VALUES

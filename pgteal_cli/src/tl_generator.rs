@@ -74,33 +74,56 @@ pub(crate) async fn query_to_teal(
         });
     let input_type = create_struct_from_db(iter, &parsed_query.name, "In")?;
 
-    let fetch_all = make_function(
-        &parsed_query,
-        &input_type.name,
-        &return_type.name,
-        PossibleFunctions::FetchAll,
-    );
-    let execute = make_function(
-        &parsed_query,
-        &input_type.name,
-        &return_type.name,
-        PossibleFunctions::Execute,
-    );
-    let fetch_one = make_function(
-        &parsed_query,
-        &input_type.name,
-        &return_type.name,
-        PossibleFunctions::FetchOne,
-    );
-    let fetch_optional = make_function(
-        &parsed_query,
-        &input_type.name,
-        &return_type.name,
-        PossibleFunctions::FetchOptional,
-    );
+    let fetch_all = parsed_query
+        .create_fetch_all
+        .then(|| {
+            make_function(
+                &parsed_query,
+                &input_type.name,
+                &return_type.name,
+                PossibleFunctions::FetchAll,
+            )
+        })
+        .unwrap_or_default();
+    let execute = parsed_query
+        .create_execute
+        .then(|| {
+            make_function(
+                &parsed_query,
+                &input_type.name,
+                &return_type.name,
+                PossibleFunctions::Execute,
+            )
+        })
+        .unwrap_or_default();
+    let fetch_one = parsed_query
+        .create_fetch_one
+        .then(|| {
+            make_function(
+                &parsed_query,
+                &input_type.name,
+                &return_type.name,
+                PossibleFunctions::FetchOne,
+            )
+        })
+        .unwrap_or_default();
+    let fetch_optional = parsed_query
+        .create_fetch_optional
+        .then(|| {
+            make_function(
+                &parsed_query,
+                &input_type.name,
+                &return_type.name,
+                PossibleFunctions::FetchOptional,
+            )
+        })
+        .unwrap_or_default();
     Ok(TealParts {
         container_name: parsed_query.name,
-        functions: vec![fetch_all, fetch_one, fetch_optional, execute],
+        functions: [fetch_all, fetch_one, fetch_optional, execute]
+            .into_iter()
+            .filter(|v| !v.is_empty())
+            .collect(),
         input_type,
         output_type: return_type,
     })

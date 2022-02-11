@@ -149,4 +149,21 @@ pool:get_connection(function(connection:pgteal.Connection):nil
     print("Successfully gone over the test!")
 end)
 
+print("Check if the disabled functions have not been generated")
+
+local get_all = queries.get_all as {string:any}
+assert(get_all.fetch_all,"fetch_all for queries.get_all did not get generated")
+assert(not get_all.execute,"execute for queries.get_all got generated")
+assert(not get_all.fetch_one,"fetch_one for queries.get_all got generated")
+assert(not get_all.fetch_optional,"fetch_optional for queries.get_all got generated")
+print("functions for queries.get_all successfully generated")
+
+print("Check functions for insert_first_row")
+local insert_first_row = queries.insert_first_row as {string:any}
+assert(not insert_first_row.fetch_all,"fetch_all for queries.insert_first_row did not get generated")
+assert(insert_first_row.execute,"execute for queries.insert_first_row got generated")
+assert(not insert_first_row.fetch_one,"fetch_one for queries.insert_first_row got generated")
+assert(not insert_first_row.fetch_optional,"fetch_optional for queries.insert_first_row got generated")
+
+
 print("Both tests succeeded!")
