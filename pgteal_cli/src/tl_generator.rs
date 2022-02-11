@@ -1,5 +1,6 @@
-use std::{convert::TryInto, ffi::OsString, fmt::Display, path::Path, slice::from_ref};
+use std::{ffi::OsString, fmt::Display, path::Path, slice::from_ref};
 
+use anyhow::Context;
 use inflector::Inflector;
 use sqlx::{postgres::PgTypeInfo, Column, Executor, Pool, Postgres, TypeInfo};
 use tealr::TypeName;
@@ -14,22 +15,36 @@ pub(crate) struct TealParts {
     pub(crate) output_type: StructAndName,
 }
 
-pub(crate) async fn query_to_teal(pool: Pool<Postgres>, parsed_query: ParsedSql) -> TealParts {
-    let x = pool.describe(&parsed_query.sql).await.unwrap_or_else(|v| {
-        eprintln!("Could not describe query: {}!", parsed_query.name);
-        eprintln!("query:{}", parsed_query.sql);
-        eprintln!(
-            "Detected param amount {} params: {}",
+fn display_params(params: &[String]) -> String {
+    params
+        .iter()
+        .map(ToOwned::to_owned)
+        .enumerate()
+        .map(|(key, v)| (key + 1, v))
+        .map(|(key, v)| format!("\t${key} = {v}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+pub(crate) async fn query_to_teal(
+    pool: Pool<Postgres>,
+    parsed_query: ParsedSql,
+) -> Result<TealParts, anyhow::Error> {
+    let x = pool.describe(&parsed_query.sql).await.with_context(|| {
+        format!(
+            "In query: `{}`\nSQL:\n{}\n\nParameters ({}) :\n{}",
+            parsed_query.name,
+            parsed_query.sql.trim(),
             parsed_query.params.len(),
-            parsed_query.params.join(" , ")
-        );
-        panic!("{}", v);
-    });
+            display_params(&parsed_query.params)
+        )
+    })?;
+
     let iter = x
         .columns()
         .iter()
-        .map(|v| (v.name(), std::slice::from_ref(v.type_info())));
-    let return_type = create_struct_from_db(iter, &parsed_query.name, "Out");
+        .map(|v| Ok((v.name(), std::slice::from_ref(v.type_info()))));
+    let return_type = create_struct_from_db(iter, &parsed_query.name, "Out")?;
 
     let desc = x.parameters();
     let iter = desc
@@ -39,16 +54,25 @@ pub(crate) async fn query_to_teal(pool: Pool<Postgres>, parsed_query: ParsedSql)
         .flat_map(|v| v.iter())
         .enumerate()
         .map(|(key, pg_type)| {
-            let name = parsed_query.params.get(key).unwrap_or_else(|| {
-                panic!(
-                    "The query needs more parameter than have been provided. Needed at least: {}, got: {}",
-                    key + 1,
-                    parsed_query.params.len()
+            parsed_query
+                .params
+                .get(key)
+                .ok_or_else(
+                    || {
+                            let parameter_list = display_params(&parsed_query.params);
+                            anyhow::anyhow!(
+                                "Query `{}` did not contain enough named parameters.\nNeeded at least {} parameters. Found {} parameters.\nParameters:\n{}\nsql:{}\n\nNote: This can be caused by using `$` directly inside the query. Use `:name` instead to bind parameters.",
+                                parsed_query.name,
+                                key + 1,
+                                parsed_query.params.len(),
+                                parameter_list,
+                                parsed_query.sql
+                            )
+                    }
                 )
-            });
-            (name.as_str(), from_ref(pg_type))
+                .map(|name| (name.as_str(), from_ref(pg_type)))
         });
-    let input_type = create_struct_from_db(iter, &parsed_query.name, "In");
+    let input_type = create_struct_from_db(iter, &parsed_query.name, "In")?;
 
     let fetch_all = make_function(
         &parsed_query,
@@ -74,12 +98,12 @@ pub(crate) async fn query_to_teal(pool: Pool<Postgres>, parsed_query: ParsedSql)
         &return_type.name,
         PossibleFunctions::FetchOptional,
     );
-    TealParts {
+    Ok(TealParts {
         container_name: parsed_query.name,
         functions: vec![fetch_all, fetch_one, fetch_optional, execute],
         input_type,
         output_type: return_type,
-    }
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -170,15 +194,20 @@ pub(crate) struct StructAndName {
     pub(crate) written_struct: String,
 }
 
-fn create_struct_from_db<'a, 'b, X: Iterator<Item = (&'a str, &'b [PgTypeInfo])>>(
+fn create_struct_from_db<
+    'a,
+    'b,
+    X: Iterator<Item = Result<(&'a str, &'b [PgTypeInfo]), anyhow::Error>>,
+>(
     fields: X,
     name: &str,
     attached: &str,
-) -> StructAndName {
+) -> Result<StructAndName, anyhow::Error> {
     let full_name = name.to_pascal_case() + attached;
     let fields = fields
-        .map(|(key, teal_type)| {
-            format!(
+        .map(|res| match res {
+            Err(x) => Err(x),
+            Ok((key, teal_type)) => Ok(format!(
                 "{} : {}",
                 key,
                 teal_type
@@ -188,26 +217,26 @@ fn create_struct_from_db<'a, 'b, X: Iterator<Item = (&'a str, &'b [PgTypeInfo])>
                     .map(|v| v.as_lua())
                     .collect::<Vec<_>>()
                     .join(" | ")
-            )
+            )),
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
     let written_struct = if fields.is_empty() {
         format!("local type {} = nil", full_name)
     } else {
         let return_type = "    ".to_string() + &fields.join("\n    ");
         format!("local type {} = record \n{}\nend", full_name, return_type)
     };
-    StructAndName {
+    Ok(StructAndName {
         name: full_name,
         written_struct,
-    }
+    })
 }
 
 pub(crate) fn write_to_file(
     original_file_path: &Path,
     teal_pattern: &str,
     parts: Vec<TealParts>,
-) -> std::io::Result<()> {
+) -> Result<(), anyhow::Error> {
     let glued_types = parts
         .iter()
         .map(|v| {
@@ -237,16 +266,28 @@ pub(crate) fn write_to_file(
         .collect::<Vec<_>>()
         .join(",\n");
 
-    let path = get_path(teal_pattern, original_file_path);
+    let path = get_path(teal_pattern, original_file_path)?;
     let path = Path::new(&path);
 
-    std::fs::create_dir_all(path.parent().unwrap())?;
+    std::fs::create_dir_all(path.parent().ok_or_else(|| {
+        anyhow::anyhow!(
+            "Could not create directories needed. Path `{}` has no parent",
+            path.to_string_lossy()
+        )
+    })?)
+    .with_context(|| {
+        format!(
+            "While creating the directories for {}",
+            path.to_string_lossy()
+        )
+    })?;
 
     let to_write = format!(
         "local libpgteal = require(\"libpgteal\")\n{}\nreturn {{\n{}\n}}",
         glued_types, modules
     );
-    std::fs::write(path, to_write)?;
+    std::fs::write(path, to_write)
+        .with_context(|| format!("While writing to {}", path.to_string_lossy()))?;
 
     Ok(())
 }
@@ -258,7 +299,7 @@ enum PathParsingState {
     MakingPattern(String),
 }
 
-fn get_path(path_template: &str, file_path: &Path) -> OsString {
+fn get_path(path_template: &str, file_path: &Path) -> Result<OsString, anyhow::Error> {
     let mut end_path = OsString::new();
     let mut state = PathParsingState::Nothing;
     for c in path_template.chars() {
@@ -283,17 +324,17 @@ fn get_path(path_template: &str, file_path: &Path) -> OsString {
                         &file_path
                             .file_stem()
                             .map(ToOwned::to_owned)
-                            .unwrap_or_else(|| "".try_into().unwrap()),
+                            .unwrap_or_else(OsString::new),
                     )
                 } else if x == "ext" {
                     end_path.push(
                         &file_path
                             .extension()
                             .map(ToOwned::to_owned)
-                            .unwrap_or_else(|| "".try_into().unwrap()),
+                            .unwrap_or_else(OsString::new),
                     )
                 } else {
-                    panic!("`{}` is not a valid pattern", x)
+                    return Err(anyhow::anyhow!("{} is not a valid pattern name", x));
                 }
                 state = PathParsingState::Nothing;
             }
@@ -307,5 +348,5 @@ fn get_path(path_template: &str, file_path: &Path) -> OsString {
             state = PathParsingState::StartPattern
         }
     }
-    end_path
+    Ok(end_path)
 }

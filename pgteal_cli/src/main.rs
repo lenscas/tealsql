@@ -2,6 +2,7 @@ mod app;
 mod sql_parser;
 mod tl_generator;
 
+use anyhow::Context;
 use glob::glob;
 use sqlx::postgres::PgPool;
 
@@ -19,13 +20,9 @@ async fn main() -> Result<(), anyhow::Error> {
         connection_string,
     } = get_app();
 
-    let pool = PgPool::connect(&connection_string)
-        .await
-        .unwrap_or_else(|x| panic!("Could not connect to the DB. Error:\n{}", x));
+    let pool = PgPool::connect(&connection_string).await?;
 
-    let x = glob(&sql_pattern).unwrap_or_else(|err| {
-        panic!("Error in pattern. Error:\n{}", err);
-    });
+    let x = glob(&sql_pattern)?;
 
     for file in x {
         let mut parsed = Vec::new();
@@ -33,13 +30,17 @@ async fn main() -> Result<(), anyhow::Error> {
             Ok(file) => {
                 let parsed_sql = parse_sql_file(&file)?;
                 for parsed_query in parsed_sql {
-                    parsed.push(query_to_teal(pool.clone(), parsed_query).await);
+                    parsed.push(
+                        query_to_teal(pool.clone(), parsed_query)
+                            .await
+                            .with_context(|| format!("In File: {}", file.to_string_lossy()))?,
+                    );
                 }
                 file
             }
-            Err(x) => panic!("Error with file. Error:\n{}", x),
+            Err(x) => return Err(x.into()),
         };
-        tl_generator::write_to_file(file.as_path(), &teal_pattern, parsed).unwrap();
+        tl_generator::write_to_file(file.as_path(), &teal_pattern, parsed)?;
     }
     Ok(())
 }
