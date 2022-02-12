@@ -165,5 +165,10 @@ assert(insert_first_row.execute,"execute for queries.insert_first_row got genera
 assert(not insert_first_row.fetch_one,"fetch_one for queries.insert_first_row got generated")
 assert(not insert_first_row.fetch_optional,"fetch_optional for queries.insert_first_row got generated")
 
+print("compile check to make sure that combined types are seen as the same")
+
+local output_get_all : queries.get_all.ThisOutputName = {}
+local output_get_by_string : queries.get_by_string.ThisOutputName = {}
+output_get_all = output_get_by_string
 
 print("Both tests succeeded!")

@@ -1,4 +1,10 @@
-use std::{ffi::OsString, fmt::Display, path::Path, slice::from_ref};
+use std::{
+    collections::{HashMap, HashSet},
+    ffi::OsString,
+    fmt::Display,
+    path::Path,
+    slice::from_ref,
+};
 
 use anyhow::Context;
 use inflector::Inflector;
@@ -26,10 +32,16 @@ fn display_params(params: &[String]) -> String {
         .join("\n")
 }
 
+pub(crate) struct TealStructResults {
+    pub(crate) parts: TealParts,
+    pub(crate) input_type_defs: HashMap<String, String>,
+    pub(crate) output_type_defs: HashMap<String, String>,
+}
+
 pub(crate) async fn query_to_teal(
     pool: Pool<Postgres>,
     parsed_query: ParsedSql,
-) -> Result<TealParts, anyhow::Error> {
+) -> Result<TealStructResults, anyhow::Error> {
     let x = pool.describe(&parsed_query.sql).await.with_context(|| {
         format!(
             "In query: `{}`\nSQL:\n{}\n\nParameters ({}) :\n{}",
@@ -44,7 +56,8 @@ pub(crate) async fn query_to_teal(
         .columns()
         .iter()
         .map(|v| Ok((v.name(), std::slice::from_ref(v.type_info()))));
-    let return_type = create_struct_from_db(iter, &parsed_query.name, "Out")?;
+    let (return_type_defs, return_type) =
+        create_struct_from_db(iter, &parsed_query, KindOfType::Output)?;
 
     let desc = x.parameters();
     let iter = desc
@@ -72,7 +85,8 @@ pub(crate) async fn query_to_teal(
                 )
                 .map(|name| (name.as_str(), from_ref(pg_type)))
         });
-    let input_type = create_struct_from_db(iter, &parsed_query.name, "In")?;
+    let (input_type_defs, input_type) =
+        create_struct_from_db(iter, &parsed_query, KindOfType::Input)?;
 
     let fetch_all = parsed_query
         .create_fetch_all
@@ -118,14 +132,18 @@ pub(crate) async fn query_to_teal(
             )
         })
         .unwrap_or_default();
-    Ok(TealParts {
-        container_name: parsed_query.name,
-        functions: [fetch_all, fetch_one, fetch_optional, execute]
-            .into_iter()
-            .filter(|v| !v.is_empty())
-            .collect(),
-        input_type,
-        output_type: return_type,
+    Ok(TealStructResults {
+        parts: TealParts {
+            container_name: parsed_query.name,
+            functions: [fetch_all, fetch_one, fetch_optional, execute]
+                .into_iter()
+                .filter(|v| !v.is_empty())
+                .collect(),
+            input_type,
+            output_type: return_type,
+        },
+        input_type_defs,
+        output_type_defs: return_type_defs,
     })
 }
 
@@ -217,42 +235,80 @@ pub(crate) struct StructAndName {
     pub(crate) written_struct: String,
 }
 
+enum KindOfType {
+    Input,
+    Output,
+}
+impl KindOfType {
+    fn get_name_of_type(&self, parsed_sql: &ParsedSql) -> String {
+        match (
+            &self,
+            &parsed_sql.overwrite_input_name,
+            &parsed_sql.overwrite_output_name,
+        ) {
+            (KindOfType::Input, None, _) => parsed_sql.name.to_pascal_case() + "In",
+            (KindOfType::Input, Some(x), _) => x.to_string(),
+            (KindOfType::Output, _, None) => parsed_sql.name.to_pascal_case() + "Out",
+            (KindOfType::Output, _, Some(x)) => x.to_string(),
+        }
+    }
+}
+
 fn create_struct_from_db<
     'a,
     'b,
     X: Iterator<Item = Result<(&'a str, &'b [PgTypeInfo]), anyhow::Error>>,
 >(
     fields: X,
-    name: &str,
-    attached: &str,
-) -> Result<StructAndName, anyhow::Error> {
-    let full_name = name.to_pascal_case() + attached;
+    parsed_query: &ParsedSql,
+    attached: KindOfType,
+) -> Result<(HashMap<String, String>, StructAndName), anyhow::Error> {
+    let full_name = attached.get_name_of_type(parsed_query);
     let fields = fields
         .map(|res| match res {
             Err(x) => Err(x),
-            Ok((key, teal_type)) => Ok(format!(
-                "{} : {}",
-                key,
+            Ok((key, teal_type)) => Ok((
+                key.to_string(),
                 teal_type
                     .iter()
                     .map(|v| v.name())
                     .filter_map(shared::TypeInformation::parse_str)
                     .map(|v| v.as_lua())
                     .collect::<Vec<_>>()
-                    .join(" | ")
+                    .join(" | "),
             )),
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<HashMap<String, String>, _>>()?;
     let written_struct = if fields.is_empty() {
         format!("local type {} = nil", full_name)
     } else {
-        let return_type = "    ".to_string() + &fields.join("\n    ");
+        let return_type = "    ".to_string()
+            + &fields
+                .iter()
+                .map(|(key, value)| format!("{} : {}", key, value))
+                .collect::<Vec<_>>()
+                .join("\n    ");
         format!("local type {} = record \n{}\nend", full_name, return_type)
     };
-    Ok(StructAndName {
-        name: full_name,
-        written_struct,
-    })
+    Ok((
+        fields,
+        StructAndName {
+            name: full_name,
+            written_struct,
+        },
+    ))
+}
+
+fn prepare_types_for_writing(types: Vec<StructAndName>) -> String {
+    let mut set = HashSet::new();
+    let mut new_types = Vec::new();
+    for type_to_check in types {
+        if !set.contains(&type_to_check.name) {
+            set.insert(type_to_check.name);
+            new_types.push(type_to_check.written_struct)
+        }
+    }
+    new_types.join("\n")
 }
 
 pub(crate) fn write_to_file(
@@ -262,15 +318,10 @@ pub(crate) fn write_to_file(
 ) -> Result<(), anyhow::Error> {
     let glued_types = parts
         .iter()
-        .map(|v| {
-            [
-                v.input_type.written_struct.clone(),
-                v.output_type.written_struct.clone(),
-            ]
-        })
+        .map(|v| [v.input_type.clone(), v.output_type.clone()])
         .flat_map(std::array::IntoIter::new)
-        .collect::<Vec<_>>()
-        .join("\n");
+        .collect::<Vec<_>>();
+    let glued_types = prepare_types_for_writing(glued_types);
 
     let modules = parts
         .into_iter()
