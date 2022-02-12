@@ -16,7 +16,7 @@ fi
 echo "Using lua version: " $FEATURE
 
 cd pgteal_cli
-cargo build --features $FEATURE
+cargo build --features $FEATURE vendored
 cd ../pgteal
 cargo build --lib --features $FEATURE
 cargo build --bin main --features $FEATURE
