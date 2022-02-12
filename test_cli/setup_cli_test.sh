@@ -18,8 +18,8 @@ echo "Using lua version: " $FEATURE
 cd pgteal_cli
 cargo build --features $FEATURE
 cd ../pgteal
-cargo build --lib --features $FEATURE
-cargo build --bin main --features $FEATURE
+cargo build --lib --features $FEATURE,vendored
+cargo build --bin main --features $FEATURE,vendored
 cd ../test_cli
 cp ../target/debug/libpgteal.so ./cli_test/libpgteal.so
 cp ../target/debug/libpgteal.d ./cli_test/libpgteal.d
