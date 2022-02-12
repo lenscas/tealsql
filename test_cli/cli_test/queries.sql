@@ -3,6 +3,8 @@
     @create_fetch_one= false
     @create_fetch_optional= false
     @create_execute = false
+    @input_name= ThisFunName
+    @output_name=ThisOutputName
 */
 SELECT *
 FROM everything;
@@ -10,6 +12,7 @@ FROM everything;
     this query gets a single row where "varchar1" = ':getBy'
     @name= get_by_string
     @create_fetch_all= false
+    @output_name=ThisOutputName
 */
 SELECT *
 FROM everything

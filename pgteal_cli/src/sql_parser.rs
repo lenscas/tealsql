@@ -17,6 +17,8 @@ pub(crate) struct ParsedSql {
     pub create_fetch_optional: bool,
     pub create_fetch_one: bool,
     pub create_fetch_all: bool,
+    pub overwrite_input_name: Option<String>,
+    pub overwrite_output_name: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -170,6 +172,8 @@ fn try_construct_parsed_sql(
         create_fetch_one: get_should_create_function(&config, "create_fetch_one", &name)?,
         create_fetch_all: get_should_create_function(&config, "create_fetch_all", &name)?,
         name,
+        overwrite_input_name: config.remove("input_name"),
+        overwrite_output_name: config.remove("output_name"),
     })
 }
 pub(crate) fn parse_sql_file(file: &Path) -> Result<Vec<ParsedSql>, anyhow::Error> {
