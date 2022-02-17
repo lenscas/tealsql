@@ -48,6 +48,13 @@ pub struct Base {}
 
 impl TealData for Base {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
+        methods.document_type("Tealsql is a sql library made to be easy and safe to use. Its RAII centric API prevents mistakes like forgetting to close connections.
+The library also makes prepared statements easy to use as it does the binding of parameters for you.");
+        methods.document_type("There are also several helper functions to do basic tasks like deleting, updating or inserting values. These allow you to quickly get something going without the need to write SQL for these basic operation");
+
+        methods.document_type("");
+        methods.document_type("Lastly, this library is made with teal in mind. This means that a automatically generated `.d.tl` file is shipped with the dependency. Allowing teal users to always have correct type information about this library.");
+        methods.document_type("Further more: This library also has a CLI that acts similar to pgtyped but for teal. This gives teal users the ability to write totally type safe sql queries.");
         methods.document("Connect to the server and create a connection pool");
         methods.document("Params:");
         methods.document("connection_string:The string used to connect to the server.");
@@ -69,6 +76,16 @@ impl TealData for Base {
         methods.document("This function receives the connection object, which will be cleaned up after the function has been executed.");
         methods.document(
             "A value returned from this function will also be returned by the connect function",
+        );
+        methods.document("## Example:");
+        methods.document(
+            "```teal_lua
+local tealsql = require\"libpgteal\"
+local res = tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
+    return con:fetch_one(\"SELECT $1 as test\",{2}) as {string:integer}
+end)
+assert(res.test ==  2)
+```\n",
         );
         methods.add_function("connect", |_,(connection_string, func): (String,tealr::mlu::TypedFunction<LuaConnection,Res>)| {
             let runtime = Arc::new(Runtime::new()?);

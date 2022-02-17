@@ -10,5 +10,4 @@ serde = "1.0.126"
 serde_json = "1.0.64"
 sqlx-core = {version = "0.5.5", features = ["uuid", "json"]}
 tealr = {git = "https://github.com/lenscas/tealr", features = ["mlua", "mlua_serialize"], default-features = false}
-#tealr = {version = "0.7.0", features = ["mlua", "mlua_serialize"], default-features = false}
 uuid = "0.8.2"

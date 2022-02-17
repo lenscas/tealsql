@@ -2,14 +2,28 @@ use std::borrow::Cow;
 
 use shared::Input;
 use sqlx::{postgres::PgRow, Column, Row, ValueRef};
-use tealr::{mlu::mlua, TypeName};
+use tealr::{mlu::mlua, NamePart, TealType, TypeName};
 
 pub(crate) struct LuaRow {
     row: PgRow,
 }
 impl TypeName for LuaRow {
-    fn get_type_name(dir: tealr::Direction) -> std::borrow::Cow<'static, str> {
-        Cow::Owned(format!("{{string:{}}}", Input::get_type_name(dir)))
+    fn get_type_parts(dir: tealr::Direction) -> std::borrow::Cow<'static, [NamePart]> {
+        let mut type_parts = vec![
+            NamePart::Symbol(Cow::Borrowed("{")),
+            NamePart::Type(TealType {
+                name: Cow::Borrowed("string"),
+                type_kind: tealr::KindOfType::Builtin,
+                generics: None,
+            }),
+            NamePart::Symbol(Cow::Borrowed(":")),
+        ];
+        type_parts.append(&mut Input::get_type_parts(dir).to_vec());
+        type_parts.push(NamePart::Symbol(Cow::Borrowed("}")));
+        Cow::Owned(type_parts)
+    }
+    fn get_type_kind() -> tealr::KindOfType {
+        tealr::KindOfType::Builtin
     }
 }
 

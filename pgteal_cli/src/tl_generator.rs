@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context;
 use inflector::Inflector;
 use sqlx::{postgres::PgTypeInfo, Column, Executor, Pool, Postgres, TypeInfo};
-use tealr::TypeName;
+use tealr::{type_parts_to_str, TypeName};
 
 use crate::sql_parser::ParsedSql;
 
@@ -222,7 +222,7 @@ fn make_function(
         end",
         function_header,
         params,
-        shared::Input::get_type_name(tealr::Direction::ToLua),
+        type_parts_to_str(shared::Input::get_type_parts(tealr::Direction::ToLua)),
         function_type,
         query.sql,
         return_name
