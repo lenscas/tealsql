@@ -56,8 +56,19 @@ The library also makes prepared statements easy to use as it does the binding of
         methods.document_type("Lastly, this library is made with teal in mind. This means that a automatically generated `.d.tl` file is shipped with the dependency. Allowing teal users to always have correct type information about this library.");
         methods.document_type("Further more: This library also has a CLI that acts similar to pgtyped but for teal. This gives teal users the ability to write totally type safe sql queries.");
         methods.document("Connect to the server and create a connection pool");
-        methods.document("Params:");
-        methods.document("connection_string:The string used to connect to the server.");
+        methods.document("## Params:");
+        methods.document("- connection_string:The string used to connect to the server.");
+        methods.document("## Example:");
+        methods.document(
+            "```teal_lua
+        local tealsql = require\"libpgteal\"
+        local pool = tealsql.connect_pool(\"postgres://userName:password@host/database\")
+        local res = pool:get_connection(function(con:libpgteal.Connection):{string:integer})
+            return con:fetch_one(\"SELECT $1 as test\",{2}) as {string:integer}
+        end)
+        assert(res.test ==  2)
+        ```\n",
+        );
         methods.add_function("connect_pool", |_, connection_string: String| {
             let runtime = Arc::new(Runtime::new()?);
             runtime.clone().block_on(async move {
@@ -67,11 +78,22 @@ The library also makes prepared statements easy to use as it does the binding of
                 Ok(crate::pool::Pool::new(pool, runtime))
             })
         });
+        methods.document("Returns the `.d.tl` file of this library.");
+        methods.add_function("gen_defs", |_, ()| {
+            crate::generate_defs().map_err(mlua::Error::external)
+        });
+        methods.document("Returns a json string representing the definitions of this library");
+        methods.document("This can be used to generate online documentation");
+        methods.document("## Params:");
+        methods.document("- pretty: If the json needs to be pretty printed or not");
+        methods.add_function("gen_json", |_, pretty: bool| {
+            crate::generate_json(pretty).map_err(mlua::Error::external)
+        });
         methods.document("Connect to the server and create a single connection");
-        methods.document("Params:");
-        methods.document("connection_string:The string used to connect to the server.");
+        methods.document("## Params:");
+        methods.document("- connection_string: The string used to connect to the server.");
         methods.document(
-            "func: The function that will be executed after the connection has been made.",
+            "- func: The function that will be executed after the connection has been made.",
         );
         methods.document("This function receives the connection object, which will be cleaned up after the function has been executed.");
         methods.document(
@@ -101,7 +123,7 @@ assert(res.test ==  2)
         });
         methods.document("Returns the value used to represent `null` values in json.");
         methods.add_function("nul", |lua, ()| Ok(lua.null()));
-        methods.document("You can index this type with \"null\" to get the value back that is used to represent null in json.");
+        methods.document("You can index this type with `\"null\"` to get the value back that is used to represent null in json.");
         methods.add_meta_function(mlua::MetaMethod::Index, |lua, string: String| {
             if string == "null" {
                 Ok(lua.null())
@@ -110,11 +132,11 @@ assert(res.test ==  2)
             }
         });
         methods.document("Creates the interval type from postgresql.");
-        methods.document("Params:");
-        methods.document("months: The amount of months in this interval. Defaults to 0");
-        methods.document("days: The amount of days in this interval. Defaults to 0");
+        methods.document("## Params:");
+        methods.document("- months: The amount of months in this interval. Defaults to 0");
+        methods.document("- days: The amount of days in this interval. Defaults to 0");
         methods
-            .document("microseconds: The amount of microseconds in this interval. Defaults to 0");
+            .document("- microseconds: The amount of microseconds in this interval. Defaults to 0");
         methods.add_function(
             "interval",
             |_, (months, days, microseconds): (Option<i32>, Option<i32>, Option<i64>)| {
