@@ -1,3 +1,5 @@
+use pgteal::generate_defs;
+
 fn main() {
-    println!("{}", pgteal::generate_types().unwrap());
+    println!("{}", generate_defs().unwrap());
 }
