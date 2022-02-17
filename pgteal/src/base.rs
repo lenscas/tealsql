@@ -61,13 +61,13 @@ The library also makes prepared statements easy to use as it does the binding of
         methods.document("## Example:");
         methods.document(
             "```teal_lua
-        local tealsql = require\"libpgteal\"
-        local pool = tealsql.connect_pool(\"postgres://userName:password@host/database\")
-        local res = pool:get_connection(function(con:libpgteal.Connection):{string:integer})
-            return con:fetch_one(\"SELECT $1 as test\",{2}) as {string:integer}
-        end)
-        assert(res.test ==  2)
-        ```\n",
+local tealsql = require\"libpgteal\"
+local pool = tealsql.connect_pool(\"postgres://userName:password@host/database\")
+local res = pool:get_connection(function(con:libpgteal.Connection):{string:integer}
+    return con:fetch_one(\"SELECT $1 as test\",{2}) as {string:integer}
+end)
+assert(res.test ==  2)
+```\n",
         );
         methods.add_function("connect_pool", |_, connection_string: String| {
             let runtime = Arc::new(Runtime::new()?);

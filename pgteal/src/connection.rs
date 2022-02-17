@@ -372,38 +372,39 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.document("```teal_lua
 local tealsql = require\"libpgteal\"
 local success, res = tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
-    con:begin(function(con:libpgteal.Connection):(bool,integer)
-        con:execute(\"INSERT INTO some_table (some_column) VALUES (1));
+    con:begin(function(con:libpgteal.Connection):(boolean,integer)
+        con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");
         return true, 1
     end
     )
 end)
 assert(res ==  1)
-        ");
+```");
         methods.document("### Manual Rollback");
         methods.document("```teal_lua
 local tealsql = require\"libpgteal\"
 local success, res = tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
-    con:begin(function(con:libpgteal.Connection):(bool,integer)
-        con:execute(\"INSERT INTO some_table (some_column) VALUES (1));
+    con:begin(function(con:libpgteal.Connection):(boolean,integer)
+        con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");
         return false, 1
     end
     )
 end)
 assert(res ==  1)
-        ");
+```");
         methods.document("### Rollback on error");
         methods.document("```teal_lua
 local tealsql = require\"libpgteal\"
 local success, res = tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
-    con:begin(function(con:libpgteal.Connection):(bool,integer)
-        con:execute(\"INSERT INTO some_table (some_column) VALUES (1));
-        Error(\"This will also cause a rollback\")
+    con:begin(function(con:libpgteal.Connection):(boolean,integer)
+        con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");
+        error(\"This will also cause a rollback\")
     end
     )
 end)
 --we will never reach this part, as the error gets rethrown
 assert(res ==  1)
+```
         ");
         methods.add_method_mut(
             "begin",
