@@ -1,3 +1,0 @@
-connection_string = 'postgres://tealsql:tealsql@localhost/tealsql'
-sql_pattern = 'cli_test/**/*.sql'
-teal_pattern = '{dir}/{name}_{ext}.tl'

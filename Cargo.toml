@@ -1,9 +1,0 @@
-[workspace]
-members = [
-  "pgteal_cli",
-  "pgteal",
-  "shared",
-]
-
-[profile.release]
-debug = true
