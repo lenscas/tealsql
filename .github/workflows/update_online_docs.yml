@@ -1,0 +1,39 @@
+name: Build and Deploy
+on:
+  push:
+    # Sequence of patterns matched against refs/heads
+    branches:
+      - master
+      - feature/add_tealr_doc_gen_integration
+    paths:
+      - "**/*.rs"
+      - ".github/workflows/update_online_docs.yml"
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: "hecrj/setup-rust-action@v1"
+        with:
+          rust-version: stable
+      - name: Add doc gen
+        #we do a debug install as those compile faster, and we don't need the runtime speed
+        run: cargo install --git https://github.com/lenscas/tealr_doc_gen --debug
+      - name: Checkout
+        uses: actions/checkout@master
+      - name: prepare doc folder
+        run: mkdir ./pages
+      - name: Build tealsql for doc deploy
+        working-directory: ./pgteal
+        run: | 
+          cargo run --bin main > ../libpgteal.d.tl
+          cargo run --bin main > ../libpgteal.json
+      - name: Build docs
+        working-directory: ./
+        #hack as there is no way to set a root folder (yet)
+        run: generate_docs --json libpgteal.json --name "/tealsql/libpgteal"
+
+      - name: deploy
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./pages
