@@ -31,8 +31,8 @@ jobs:
       - name: Build tealsql for doc deploy
         working-directory: ./pgteal
         run: | 
-          cargo run --bin main --features mlua,mlua_lua54,mlua_vendored > ../libpgteal.d.tl
-          cargo run --bin main --features mlua,mlua_lua54,mlua_vendored > ../libpgteal.json
+          cargo run --bin main --features lua54,vendored > ../libpgteal.d.tl
+          cargo run --bin main --features lua54,vendored > ../libpgteal.json
       - name: Build docs
         working-directory: ./
         #hack as there is no way to set a root folder (yet)
