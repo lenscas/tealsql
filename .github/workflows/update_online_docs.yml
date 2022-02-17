@@ -22,11 +22,17 @@ jobs:
         uses: actions/checkout@master
       - name: prepare doc folder
         run: mkdir ./pages
+      - uses: leafo/gh-actions-lua@v8.0.0
+        with:
+          luaVersion: 5.4
+      - uses: leafo/gh-actions-luarocks@v4.0.0
+      - name: install teal
+        run: luarocks install tl
       - name: Build tealsql for doc deploy
         working-directory: ./pgteal
         run: | 
-          cargo run --bin main > ../libpgteal.d.tl
-          cargo run --bin main > ../libpgteal.json
+          cargo run --bin main --features mlua,mlua_lua54,mlua_vendored > ../libpgteal.d.tl
+          cargo run --bin main --features mlua,mlua_lua54,mlua_vendored > ../libpgteal.json
       - name: Build docs
         working-directory: ./
         #hack as there is no way to set a root folder (yet)
