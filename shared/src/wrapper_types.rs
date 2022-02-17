@@ -1,15 +1,24 @@
 use std::{borrow::Cow, convert::TryFrom};
 
+use serde::Serialize;
 use sqlx_core::postgres::types::PgInterval;
 use tealr::{
     mlu::mlua::{FromLua, ToLua, Value},
-    TypeName,
+    new_type, NamePart, TypeName,
 };
+
+#[derive(Serialize)]
+#[serde(remote = "PgInterval")]
+struct IntervalDefForSerde {
+    pub months: i32,
+    pub days: i32,
+    pub microseconds: i64,
+}
 
 use crate::Table;
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct Interval(pub PgInterval);
+#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+pub struct Interval(#[serde(with = "IntervalDefForSerde")] pub PgInterval);
 
 impl From<PgInterval> for Interval {
     fn from(x: PgInterval) -> Self {
@@ -23,8 +32,8 @@ impl From<Interval> for PgInterval {
 }
 
 impl TypeName for Interval {
-    fn get_type_name(_: tealr::Direction) -> std::borrow::Cow<'static, str> {
-        Cow::Borrowed("Interval")
+    fn get_type_parts(_: tealr::Direction) -> std::borrow::Cow<'static, [NamePart]> {
+        new_type!(Interval)
     }
 }
 impl<'lua> FromLua<'lua> for Interval {

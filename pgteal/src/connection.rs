@@ -11,6 +11,7 @@ use sqlx::{
 };
 use tealr::mlu::mlua;
 use tealr::{mlu::TealData, TypeName};
+use tealr::{new_type, NamePart};
 use tokio::runtime::Runtime;
 
 pub(crate) type QueryParamCollection = BTreeMap<i64, Input>;
@@ -60,8 +61,8 @@ pub(crate) struct LuaConnection<'c> {
 }
 impl<'c> TypeName for LuaConnection<'c> {
     //the name of the type as known to teal.
-    fn get_type_name(_: tealr::Direction) -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("Connection")
+    fn get_type_parts(_: tealr::Direction) -> std::borrow::Cow<'static, [NamePart]> {
+        new_type!(Connection)
     }
 }
 
@@ -221,6 +222,8 @@ impl<'c> LuaConnection<'c> {
 
 impl<'c> TealData for LuaConnection<'c> {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
+        methods.document_type("A single database connection");
+
         methods.document("Fetches 1 or 0 results from the database");
         methods.document("Params:");
         methods.document("query: The query string that needs to be executed");

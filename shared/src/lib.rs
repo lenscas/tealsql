@@ -14,6 +14,7 @@ use sqlx_core::{
     types::Type,
     value::Value,
 };
+use tealr::NamePart;
 use tealr::{
     mlu::mlua::{self, FromLua, LuaSerdeExt, Number, ToLua},
     TypeName,
@@ -56,8 +57,15 @@ impl<'lua> mlua::ToLua<'lua> for Table {
     }
 }
 impl tealr::TypeName for Table {
-    fn get_type_name(_: tealr::Direction) -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("{any:any}")
+    fn get_type_parts(d: tealr::Direction) -> std::borrow::Cow<'static, [NamePart]> {
+        tealr::mlu::mlua::Table::get_type_parts(d)
+    }
+    fn get_type_kind() -> tealr::KindOfType {
+        tealr::mlu::mlua::Table::get_type_kind()
+    }
+
+    fn collect_children(x: &mut Vec<tealr::TealType>) {
+        tealr::mlu::mlua::Table::collect_children(x)
     }
 }
 
@@ -69,8 +77,8 @@ impl<'lua> ToLua<'lua> for Bool {
     }
 }
 impl TypeName for Bool {
-    fn get_type_name(dir: tealr::Direction) -> std::borrow::Cow<'static, str> {
-        bool::get_type_name(dir)
+    fn get_type_parts(dir: tealr::Direction) -> std::borrow::Cow<'static, [NamePart]> {
+        bool::get_type_parts(dir)
     }
 
     fn get_type_kind() -> tealr::KindOfType {
@@ -102,8 +110,8 @@ impl<'lua> ToLua<'lua> for Integer {
     }
 }
 impl TypeName for Integer {
-    fn get_type_name(dir: tealr::Direction) -> std::borrow::Cow<'static, str> {
-        i64::get_type_name(dir)
+    fn get_type_parts(dir: tealr::Direction) -> std::borrow::Cow<'static, [NamePart]> {
+        i64::get_type_parts(dir)
     }
 
     fn get_type_kind() -> tealr::KindOfType {
@@ -188,7 +196,8 @@ where
     match value.try_into() {
         Ok(x) => Ok(query.bind(x)),
         Err(_) => {
-            let from = match T::get_type_name(tealr::Direction::FromLua) {
+            let from = match tealr::type_parts_to_str(T::get_type_parts(tealr::Direction::FromLua))
+            {
                 std::borrow::Cow::Borrowed(x) => x,
                 std::borrow::Cow::Owned(_) => "unknown",
             };

@@ -4,7 +4,7 @@ use std::{
     sync::{atomic::AtomicBool, Arc, Mutex},
     thread::JoinHandle,
 };
-use tealr::mlu::TealData;
+use tealr::{mlu::TealData, new_type, NamePart};
 
 use sqlx::postgres::PgRow;
 
@@ -25,8 +25,8 @@ pub(crate) struct Iter {
 }
 
 impl<'e> tealr::TypeName for Iter {
-    fn get_type_name(_: tealr::Direction) -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("Stream")
+    fn get_type_parts(_: tealr::Direction) -> std::borrow::Cow<'static, [NamePart]> {
+        new_type!(Stream)
     }
 }
 
@@ -136,6 +136,8 @@ impl Iter {
 
 impl TealData for Iter {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
+        methods.document_type("Returned from connection:fetch_all_async(). It allows you to do other things while the query is running in a background thread.");
+
         methods.document("returns the next item if it is available or nill if not.");
         methods.document("Does NOT block the main thread.");
         methods.add_method_mut("try_next", |lua, this, ()| {

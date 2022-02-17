@@ -494,9 +494,9 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.10.1"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69ddb889f9d0d08a67338271fa9b62996bc788c7796a5c18cf057420aaed5eaf"
+checksum = "a9a9d19fa1e79b6215ff29b9d6880b706147f16e9b1dbb1e4e5947b5b02bc5e3"
 dependencies = [
  "either",
 ]
@@ -942,18 +942,18 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.130"
+version = "1.0.136"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f12d06de37cf59146fbdecab66aa99f9fe4f78722e3607577a5375d66bd0c913"
+checksum = "ce31e24b01e1e524df96f1c2fdd054405f8d7376249a5110886fb4b658484789"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.130"
+version = "1.0.136"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7bc1a1ab1961464eae040d96713baa5a724a8152c1222492465b54322ec508b"
+checksum = "08597e7152fcd306f41838ed3e37be9eaeed2b61c42e2117266a554fab4662f9"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1167,17 +1167,19 @@ dependencies = [
 [[package]]
 name = "tealr"
 version = "0.7.0"
-source = "git+https://github.com/lenscas/tealr#1e295a823f9a3e215a3af21ac97e6f7e55ae7937"
+source = "git+https://github.com/lenscas/tealr#57edbb8d200914e5393359547df82cd124fb8d1a"
 dependencies = [
  "bstr",
+ "itertools",
  "mlua",
+ "serde",
  "tealr_derive",
 ]
 
 [[package]]
 name = "tealr_derive"
 version = "0.6.0"
-source = "git+https://github.com/lenscas/tealr#1e295a823f9a3e215a3af21ac97e6f7e55ae7937"
+source = "git+https://github.com/lenscas/tealr#57edbb8d200914e5393359547df82cd124fb8d1a"
 dependencies = [
  "proc-macro2",
  "quote",

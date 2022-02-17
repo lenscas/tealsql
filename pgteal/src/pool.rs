@@ -25,6 +25,10 @@ impl Pool {
 
 impl TealData for Pool {
     fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
+        methods.document_type("A connection pool containing at most 10 connections.");
+        methods.document_type("Opening a database connection for each and every operation to the database can quickly become expensive.");
+        methods.document_type("A connection pool is a standard technique that can manage opening and re-using connections. Normally it also enforces a maximum number of connections as these are an expensive resource on the database server.");
+
         methods.document("Gets a connection from the pool");
         methods.document("Parameters:");
         methods.document(

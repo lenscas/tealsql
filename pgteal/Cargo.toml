@@ -26,14 +26,11 @@ either = "1.6.1"
 futures = "0.3.15"
 mlua = "0.6.4"
 parking_lot = "0.11.1"
-sqlx = {version = "0.5.5", features = ["runtime-tokio-rustls", "postgres", "tls", "uuid", "json"], default-features = false}
-tokio = {version = "*", features = ["rt"]}
-#tealr = {git = "https://github.com/lenscas/tealr", branch = "master", features = ["derive", "mlua", "mlua_vendored", "mlua_lua54", "mlua_module"], default-features = false}
-#tealr = {path = "../../tealr/tealr", features = ["derive", "mlua", "mlua_vendored", "mlua_lua54", "mlua_module"], default-features = false}
-tealr = {git = "https://github.com/lenscas/tealr", features = ["derive", "mlua", "mlua_serialize", "mlua_module"], default-features = false}
-#tealr = {version = "0.7.0", features = ["derive", "mlua", "mlua_vendored", "mlua_lua54", "mlua_module", "mlua_serialize"], default-features = false}
-serde = "1.0.126"
+serde = {version = "1.0.126"}
 serde_json = "1.0.64"
 shared = {path = "../shared"}
+sqlx = {version = "0.5.5", features = ["runtime-tokio-rustls", "postgres", "tls", "uuid", "json"], default-features = false}
+tealr = {git = "https://github.com/lenscas/tealr", features = ["derive", "mlua", "mlua_serialize", "mlua_module"], default-features = false}
+tokio = {version = "*", features = ["rt"]}
 triple_buffer = "5.0.6"
 uuid = "0.8.2"
