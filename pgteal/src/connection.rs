@@ -225,10 +225,10 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.document_type("A single database connection");
 
         methods.document("Fetches 1 or 0 results from the database");
-        methods.document("Params:");
-        methods.document("query: The query string that needs to be executed");
+        methods.document("## Params:");
+        methods.document("- query: The query string that needs to be executed");
         methods.document(
-            "params: An array (table) containing the parameters that this function needs",
+            "- params: An array (table) containing the parameters that this function needs",
         );
         methods.add_method(
             "fetch_optional",
@@ -248,10 +248,10 @@ impl<'c> TealData for LuaConnection<'c> {
             },
         );
         methods.document("Fetches all results into a table");
-        methods.document("Params:");
-        methods.document("query: The query string that needs to be executed");
+        methods.document("## Params:");
+        methods.document("- query: The query string that needs to be executed");
         methods.document(
-            "params: An array (table) containing the parameters that this function needs",
+            "- params: An array (table) containing the parameters that this function needs",
         );
         methods.add_method(
             "fetch_all",
@@ -274,12 +274,12 @@ impl<'c> TealData for LuaConnection<'c> {
             },
         );
         methods.document("Runs a thread in the background that fetches all results. Allowing you to consume the results in batches, or do other things while the query is being executed");
-        methods.document("Params:");
-        methods.document("query: The query string that needs to be executed");
+        methods.document("# Params:");
+        methods.document("- query: The query string that needs to be executed");
         methods.document(
-            "params: An array (table) containing the parameters that this function needs",
+            "- params: An array (table) containing the parameters that this function needs",
         );
-        methods.document("chunk_count: How big the batches are that will be returned from the background thread to the main one. Higher batch count may improve performance");
+        methods.document("- chunk_count: How big the batches are that will be returned from the background thread to the main one. Higher batch count may improve performance");
         methods.add_method(
             "fetch_all_async",
             |_, this, (query, mut params, chunk_count): (String, QueryParamCollection, Option<usize>)|  {
@@ -328,10 +328,10 @@ impl<'c> TealData for LuaConnection<'c> {
             },
         );
         methods.document("Fetches exactly 1 value from the database.");
-        methods.document("Params:");
-        methods.document("query: The query string that needs to be executed");
+        methods.document("## Params:");
+        methods.document("- query: The query string that needs to be executed");
         methods.document(
-            "params: An array (table) containing the parameters that this function needs",
+            "- params: An array (table) containing the parameters that this function needs",
         );
         methods.add_method(
             "execute",
@@ -339,10 +339,10 @@ impl<'c> TealData for LuaConnection<'c> {
                 this.runtime.block_on(this.execute(query, params))
             },
         );
-        methods.document("Params:");
-        methods.document("query: The query string that needs to be executed");
+        methods.document("## Params:");
+        methods.document("- query: The query string that needs to be executed");
         methods.document(
-            "params: An array (table) containing the parameters that this function needs",
+            "- params: An array (table) containing the parameters that this function needs",
         );
         methods.add_method(
             "fetch_one",
@@ -358,15 +358,54 @@ impl<'c> TealData for LuaConnection<'c> {
             },
         );
         methods.document("Starts a new transaction.");
-        methods.document("Params:");
+        methods.document("## Params:");
         methods.document(
-            "func: The function that will be executed after the transaction has been made.",
+            "- func: The function that will be executed after the transaction has been made.",
         );
         methods.document("This function can return 2 values, the first is a boolean that determines if the transaction should be committed or not.");
         methods.document("The second can be of any type and will be returned as is");
         methods.document("After this function is executed the transaction will either be committed or rolled back.");
         methods.document("It will be rolled back if the callback threw an error, or returned false for the first return value");
         methods.document("Otherwise, it will be committed");
+        methods.document("## Examples:");
+        methods.document("### Committing");
+        methods.document("```teal_lua
+local tealsql = require\"libpgteal\"
+local success, res = tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
+    con:begin(function(con:libpgteal.Connection):(boolean,integer)
+        con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");
+        return true, 1
+    end
+    )
+end)
+assert(res ==  1)
+```");
+        methods.document("### Manual Rollback");
+        methods.document("```teal_lua
+local tealsql = require\"libpgteal\"
+local success, res = tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
+    con:begin(function(con:libpgteal.Connection):(boolean,integer)
+        con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");
+        return false, 1
+    end
+    )
+end)
+assert(res ==  1)
+```");
+        methods.document("### Rollback on error");
+        methods.document("```teal_lua
+local tealsql = require\"libpgteal\"
+local success, res = tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
+    con:begin(function(con:libpgteal.Connection):(boolean,integer)
+        con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");
+        error(\"This will also cause a rollback\")
+    end
+    )
+end)
+--we will never reach this part, as the error gets rethrown
+assert(res ==  1)
+```
+        ");
         methods.add_method_mut(
             "begin",
             |_, this, func: tealr::mlu::TypedFunction<LuaConnection, (Option<bool>, Option<crate::Res>)>| {
@@ -426,13 +465,13 @@ impl<'c> TealData for LuaConnection<'c> {
             },
         );
         methods.document("A shorthand to run a basic insert command.");
-        methods.document("WARNING!:");
+        methods.document("# WARNING!:");
         methods.document("the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these values.");
         methods.document("The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.");
-        methods.document("Parameters:");
-        methods.document("name: the table name that will be inserted into");
-        methods.document("values: A table where the keys are the column names and the values are the values that will be inserted");
-        methods.document("needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s");
+        methods.document("## Parameters:");
+        methods.document("- name: the table name that will be inserted into");
+        methods.document("- values: A table where the keys are the column names and the values are the values that will be inserted");
+        methods.document("- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s");
         methods.add_method(
             "insert",
             |_,
@@ -462,10 +501,10 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.document("the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these.");
         methods.document("The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.");
         methods.document("Parameters:");
-        methods.document("name: the table name that will be inserted into");
-        methods.document("old_values: A table used to construct the `where` part of the query. The keys are the column names and the values are the values that will be matched against");
-        methods.document("new_values: A table where the keys are the column names and the values are the values that this column will be updated to");
-        methods.document("needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s");
+        methods.document("- name: the table name that will be inserted into");
+        methods.document("- old_values: A table used to construct the `where` part of the query. The keys are the column names and the values are the values that will be matched against");
+        methods.document("- new_values: A table where the keys are the column names and the values are the values that this column will be updated to");
+        methods.document("- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s");
         methods.add_method(
             "update",
             |_,
@@ -510,9 +549,9 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.document("the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these values.");
         methods.document("The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.");
         methods.document("Parameters:");
-        methods.document("name: the table name that will be inserted into");
-        methods.document("old_values: A table used to construct the `where` part of the query. The keys are the column names and the values are the values that will be matched against");
-        methods.document("needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s");
+        methods.document("- name: the table name that will be inserted into");
+        methods.document("- old_values: A table used to construct the `where` part of the query. The keys are the column names and the values are the values that will be matched against");
+        methods.document("- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s");
         methods.add_method(
             "delete",
             |_,
