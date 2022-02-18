@@ -4,7 +4,6 @@ on:
     # Sequence of patterns matched against refs/heads
     branches:
       - master
-      - feature/add_tealr_doc_gen_integration
     paths:
       - "**/*.rs"
       - ".github/workflows/update_online_docs.yml"
