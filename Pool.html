@@ -16,7 +16,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.4.0/highlight.min.js"
         integrity="sha512-IaaKO80nPNs5j+VLxd42eK/7sYuXQmr+fyywCNA0e+C6gtQnuCXNtORe9xR4LqGPz5U9VpH+ff41wKs/ZmC3iA=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <title>/tealsql/libpgteal</title>
+    <title>Pool</title>
     <style>
         html,
         body,
@@ -65,7 +65,7 @@
                 <p class="menu-label is-hidden-touch">Navigation</p>
                 <ul class="menu-list">
                     <li>
-                    <a href="index.html" class="is-active">
+                    <a href="index.html" class="">
                         <span class="icon"><i class="fa fa-file"></i></span> /tealsql/libpgteal
                     </a>
                     <ul>
@@ -106,7 +106,7 @@
 </li>
                     </ul>
                 </li><li>
-                    <a href="Pool.html" class="">
+                    <a href="Pool.html" class="is-active">
                         <span class="icon"><i class="fa fa-file"></i></span> Pool
                     </a>
                     <ul>
@@ -224,7 +224,7 @@
                 <div class="section">
                     <div class="panel">
                         <div class="panel-heading">
-                            <h1 class="title">/tealsql/libpgteal</h1>
+                            <h1 class="title">Pool</h1>
                         </div>
                         <div class="panel-block">
                             <div class="container">
@@ -236,11 +236,9 @@
             </div>
             <div class="panel-block">
                 <div class="container">
-                    <p>Tealsql is a sql library made to be easy and safe to use. Its RAII centric API prevents mistakes like forgetting to close connections.
-The library also makes prepared statements easy to use as it does the binding of parameters for you.</p>
-<p>There are also several helper functions to do basic tasks like deleting, updating or inserting values. These allow you to quickly get something going without the need to write SQL for these basic operation</p>
-<p>Lastly, this library is made with teal in mind. This means that a automatically generated <code>.d.tl</code> file is shipped with the dependency. Allowing teal users to always have correct type information about this library.</p>
-<p>Further more: This library also has a CLI that acts similar to pgtyped but for teal. This gives teal users the ability to write totally type safe sql queries.</p>
+                    <p>A connection pool containing at most 10 connections.</p>
+<p>Opening a database connection for each and every operation to the database can quickly become expensive.</p>
+<p>A connection pool is a standard technique that can manage opening and re-using connections. Normally it also enforces a maximum number of connections as these are an expensive resource on the database server.</p>
 
                 </div>
             </div>
@@ -265,111 +263,14 @@ The library also makes prepared statements easy to use as it does the binding of
             <div class="panel-block">
                 <div class="container">
                     <div class="card block">
-                        <div class="card-heading" id="connect_pool">
-                            <code class="card-header-title"><p> connect_pool: function(string):(<a href="Pool.html">Pool</a>)</p></code>
+                        <div class="card-heading" id="get_connection">
+                            <code class="card-header-title"><p> get_connection: function&lt;Res&gt;(<a href="Pool.html">Pool</a>,function(<a href="Connection.html">Connection</a>):(Res)):(Res)</p></code>
                         </div>
-                        <div class="card-content content"><p>Connect to the server and create a connection pool</p>
-<h2>Params:</h2>
-<ul>
-<li>connection_string:The string used to connect to the server.</li>
-</ul>
-<h2>Example:</h2>
-<div class="tabs"><ul><li class="select-teal"><a>Teal</a></li><li class="select-lua"><a>Lua</a></li></ul></div><div class="code-block-teal">
-<pre><code class="language-lua">
-local tealsql = require&quot;libpgteal&quot;
-local pool = tealsql.connect_pool(&quot;postgres://userName:password@host/database&quot;)
-local res = pool:get_connection(function(con:libpgteal.Connection):{string:integer}
-    return con:fetch_one(&quot;SELECT $1 as test&quot;,{2}) as {string:integer}
-end)
-assert(res.test ==  2)
-</code></pre>
-</div><div class="code-block-lua">
-<pre><code class="language-lua">
-local tealsql = require(&quot;libpgteal&quot;)
-local pool = tealsql.connect_pool(&quot;postgres://userName:password@host/database&quot;)
-local res = pool:get_connection(function(con)
-   return con:fetch_one(&quot;SELECT $1 as test&quot;, { 2 })
-end)
-assert(res.test == 2)</code></pre>
-</div></div>
-                    </div>
-                    <div class="card block">
-                        <div class="card-heading" id="gen_defs">
-                            <code class="card-header-title"><p> gen_defs: function():(string)</p></code>
-                        </div>
-                        <div class="card-content content"><p>Returns the <code>.d.tl</code> file of this library.</p>
-</div>
-                    </div>
-                    <div class="card block">
-                        <div class="card-heading" id="gen_json">
-                            <code class="card-header-title"><p> gen_json: function(boolean):(string)</p></code>
-                        </div>
-                        <div class="card-content content"><p>Returns a json string representing the definitions of this library</p>
-<p>This can be used to generate online documentation</p>
-<h2>Params:</h2>
-<ul>
-<li>pretty: If the json needs to be pretty printed or not</li>
-</ul>
-</div>
-                    </div>
-                    <div class="card block">
-                        <div class="card-heading" id="connect">
-                            <code class="card-header-title"><p> connect: function&lt;Res&gt;((string),(function(<a href="Connection.html">Connection</a>):(Res))):(Res)</p></code>
-                        </div>
-                        <div class="card-content content"><p>Connect to the server and create a single connection</p>
-<h2>Params:</h2>
-<ul>
-<li>
-<p>connection_string: The string used to connect to the server.</p>
-</li>
-<li>
-<p>func: The function that will be executed after the connection has been made.</p>
-</li>
-</ul>
+                        <div class="card-content content"><p>Gets a connection from the pool</p>
+<p>Parameters:</p>
+<p>call_back: The function that will be executed after the connection has been made.</p>
 <p>This function receives the connection object, which will be cleaned up after the function has been executed.</p>
 <p>A value returned from this function will also be returned by the connect function</p>
-<h2>Example:</h2>
-<div class="tabs"><ul><li class="select-teal"><a>Teal</a></li><li class="select-lua"><a>Lua</a></li></ul></div><div class="code-block-teal">
-<pre><code class="language-lua">
-local tealsql = require&quot;libpgteal&quot;
-local res = tealsql.connect(&quot;postgres://userName:password@host/database&quot;,function(con:tealsql.Connection):{string:integer}
-    return con:fetch_one(&quot;SELECT $1 as test&quot;,{2}) as {string:integer}
-end)
-assert(res.test ==  2)
-</code></pre>
-</div><div class="code-block-lua">
-<pre><code class="language-lua">
-local tealsql = require(&quot;libpgteal&quot;)
-local res = tealsql.connect(&quot;postgres://userName:password@host/database&quot;, function(con)
-   return con:fetch_one(&quot;SELECT $1 as test&quot;, { 2 })
-end)
-assert(res.test == 2)</code></pre>
-</div></div>
-                    </div>
-                    <div class="card block">
-                        <div class="card-heading" id="nul">
-                            <code class="card-header-title"><p> nul: function():(any)</p></code>
-                        </div>
-                        <div class="card-content content"><p>Returns the value used to represent <code>null</code> values in json.</p>
-</div>
-                    </div>
-                    <div class="card block">
-                        <div class="card-heading" id="interval">
-                            <code class="card-header-title"><p> interval: function((integer),(integer),(integer)):(<a href="Interval.html">Interval</a>)</p></code>
-                        </div>
-                        <div class="card-content content"><p>Creates the interval type from postgresql.</p>
-<h2>Params:</h2>
-<ul>
-<li>
-<p>months: The amount of months in this interval. Defaults to 0</p>
-</li>
-<li>
-<p>days: The amount of days in this interval. Defaults to 0</p>
-</li>
-<li>
-<p>microseconds: The amount of microseconds in this interval. Defaults to 0</p>
-</li>
-</ul>
 </div>
                     </div>
                     <div class="card block">
@@ -377,27 +278,9 @@ assert(res.test == 2)</code></pre>
                             <code class="card-header-title"><p> help: function(string):(string)</p></code>
                         </div>
                         
-                    </div>
-                    <div class="card block">
-                        <div class="card-heading" id="__index">
-                            <code class="card-header-title"><p>metamethod __index: function(string):(any)</p></code>
-                        </div>
-                        <div class="card-content content"><p>You can index this type with <code>&quot;null&quot;</code> to get the value back that is used to represent null in json.</p>
-</div>
                     </div></div>
             </div>
-        </div><div class="panel">
-            <div class="panel-heading">
-                <p class="panel-header-title">Types:</p>
-            </div>
-            <div class="panel-block">
-                <div class="container">
-        <div class="card block"><a href="Pool.html"><div class="card-header"><code class="card-header-title">Pool</code></div> <div class="card-content content"><p>A connection pool containing at most 10 connections.</p>
-<p>Opening a database connection for each and every operation to the database can quickly become expensive.</p>
-<p>A connection pool is a standard technique that can manage opening and re-using connections. Normally it also enforces a maximum number of connections as these are an expensive resource on the database server.</p>
-</div></a></div><div class="card block"><a href="Connection.html"><div class="card-header"><code class="card-header-title">Connection</code></div> <div class="card-content content"><p>A single database connection</p>
-</div></a></div><div class="card block"><a href="Stream.html"><div class="card-header"><code class="card-header-title">Stream</code></div> <div class="card-content content"><p>Returned from connection:fetch_all_async(). It allows you to do other things while the query is running in a background thread.</p>
-</div></a></div><div class="card block"><a href="Interval.html"><div class="card-header"><code class="card-header-title">Interval</code></div> <div class="card-content content"></div></a></div></div></div>
+        </div>
 </div>
                         </div>
                     </div>
