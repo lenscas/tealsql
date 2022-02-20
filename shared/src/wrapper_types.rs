@@ -32,7 +32,7 @@ impl From<Interval> for PgInterval {
 }
 
 impl TypeName for Interval {
-    fn get_type_parts(_: tealr::Direction) -> std::borrow::Cow<'static, [NamePart]> {
+    fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
         new_type!(Interval)
     }
 }
@@ -68,7 +68,7 @@ impl<'lua> ToLua<'lua> for Interval {
 }
 
 impl<'lua> tealr::TypeBody for Interval {
-    fn get_type_body(_: tealr::Direction, gen: &mut tealr::TypeGenerator) {
+    fn get_type_body(gen: &mut tealr::TypeGenerator) {
         gen.fields
             .push((Cow::Borrowed("months"), Cow::Borrowed("integer")));
         gen.fields

@@ -25,7 +25,7 @@ pub(crate) struct Iter {
 }
 
 impl<'e> tealr::TypeName for Iter {
-    fn get_type_parts(_: tealr::Direction) -> std::borrow::Cow<'static, [NamePart]> {
+    fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
         new_type!(Stream)
     }
 }

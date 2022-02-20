@@ -61,7 +61,7 @@ pub(crate) struct LuaConnection<'c> {
 }
 impl<'c> TypeName for LuaConnection<'c> {
     //the name of the type as known to teal.
-    fn get_type_parts(_: tealr::Direction) -> std::borrow::Cow<'static, [NamePart]> {
+    fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
         new_type!(Connection)
     }
 }
@@ -74,7 +74,7 @@ impl<'c> mlua::UserData for LuaConnection<'c> {
 }
 impl tealr::TypeBody for LuaConnection<'static> {
     //this allows tealr to generate the type definition for this type
-    fn get_type_body(_: ::tealr::Direction, gen: &mut ::tealr::TypeGenerator) {
+    fn get_type_body(gen: &mut ::tealr::TypeGenerator) {
         gen.is_user_data = true;
         <Self as ::tealr::mlu::TealData>::add_methods(gen);
     }
@@ -371,39 +371,41 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.document("### Committing");
         methods.document("```teal_lua
 local tealsql = require\"libpgteal\"
-local success, res = tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
-    con:begin(function(con:libpgteal.Connection):(boolean,integer)
+tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
+    local success, res = con:begin(function(con:tealsql.Connection):(boolean,integer)
         con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");
         return true, 1
-    end
-    )
+    end)
+    assert(success)
+    assert(res ==  1)
 end)
-assert(res ==  1)
+
 ```");
         methods.document("### Manual Rollback");
         methods.document("```teal_lua
 local tealsql = require\"libpgteal\"
-local success, res = tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
-    con:begin(function(con:libpgteal.Connection):(boolean,integer)
+tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
+    local success, res = con:begin(function(con:tealsql.Connection):(boolean,integer)
         con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");
         return false, 1
-    end
-    )
+    end)
+    assert(not success)
+    assert(res ==  1)
 end)
-assert(res ==  1)
 ```");
         methods.document("### Rollback on error");
         methods.document("```teal_lua
 local tealsql = require\"libpgteal\"
-local success, res = tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
-    con:begin(function(con:libpgteal.Connection):(boolean,integer)
+tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
+    local success, res = con:begin(function(con:tealsql.Connection):(boolean,integer)
         con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");
         error(\"This will also cause a rollback\")
-    end
-    )
+    end)
+    --we will never reach this part, as the error gets rethrown
+    assert(res ==  1)
 end)
---we will never reach this part, as the error gets rethrown
-assert(res ==  1)
+
+
 ```
         ");
         methods.add_method_mut(
