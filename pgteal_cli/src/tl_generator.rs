@@ -222,7 +222,7 @@ fn make_function(
         end",
         function_header,
         params,
-        type_parts_to_str(shared::Input::get_type_parts(tealr::Direction::ToLua)),
+        type_parts_to_str(shared::Input::get_type_parts()),
         function_type,
         query.sql,
         return_name

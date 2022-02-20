@@ -63,7 +63,7 @@ The library also makes prepared statements easy to use as it does the binding of
             "```teal_lua
 local tealsql = require\"libpgteal\"
 local pool = tealsql.connect_pool(\"postgres://userName:password@host/database\")
-local res = pool:get_connection(function(con:libpgteal.Connection):{string:integer}
+local res = pool:get_connection(function(con:tealsql.Connection):{string:integer}
     return con:fetch_one(\"SELECT $1 as test\",{2}) as {string:integer}
 end)
 assert(res.test ==  2)

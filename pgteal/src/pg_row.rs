@@ -8,7 +8,7 @@ pub(crate) struct LuaRow {
     row: PgRow,
 }
 impl TypeName for LuaRow {
-    fn get_type_parts(dir: tealr::Direction) -> std::borrow::Cow<'static, [NamePart]> {
+    fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
         let mut type_parts = vec![
             NamePart::Symbol(Cow::Borrowed("{")),
             NamePart::Type(TealType {
@@ -18,7 +18,7 @@ impl TypeName for LuaRow {
             }),
             NamePart::Symbol(Cow::Borrowed(":")),
         ];
-        type_parts.append(&mut Input::get_type_parts(dir).to_vec());
+        type_parts.append(&mut Input::get_type_parts().to_vec());
         type_parts.push(NamePart::Symbol(Cow::Borrowed("}")));
         Cow::Owned(type_parts)
     }

@@ -57,8 +57,8 @@ impl<'lua> mlua::ToLua<'lua> for Table {
     }
 }
 impl tealr::TypeName for Table {
-    fn get_type_parts(d: tealr::Direction) -> std::borrow::Cow<'static, [NamePart]> {
-        tealr::mlu::mlua::Table::get_type_parts(d)
+    fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
+        tealr::mlu::mlua::Table::get_type_parts()
     }
     fn get_type_kind() -> tealr::KindOfType {
         tealr::mlu::mlua::Table::get_type_kind()
@@ -77,8 +77,8 @@ impl<'lua> ToLua<'lua> for Bool {
     }
 }
 impl TypeName for Bool {
-    fn get_type_parts(dir: tealr::Direction) -> std::borrow::Cow<'static, [NamePart]> {
-        bool::get_type_parts(dir)
+    fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
+        bool::get_type_parts()
     }
 
     fn get_type_kind() -> tealr::KindOfType {
@@ -110,8 +110,8 @@ impl<'lua> ToLua<'lua> for Integer {
     }
 }
 impl TypeName for Integer {
-    fn get_type_parts(dir: tealr::Direction) -> std::borrow::Cow<'static, [NamePart]> {
-        i64::get_type_parts(dir)
+    fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
+        i64::get_type_parts()
     }
 
     fn get_type_kind() -> tealr::KindOfType {
@@ -196,8 +196,7 @@ where
     match value.try_into() {
         Ok(x) => Ok(query.bind(x)),
         Err(_) => {
-            let from = match tealr::type_parts_to_str(T::get_type_parts(tealr::Direction::FromLua))
-            {
+            let from = match tealr::type_parts_to_str(T::get_type_parts()) {
                 std::borrow::Cow::Borrowed(x) => x,
                 std::borrow::Cow::Owned(_) => "unknown",
             };

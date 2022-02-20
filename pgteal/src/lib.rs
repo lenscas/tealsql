@@ -12,7 +12,7 @@ pub use base::Base;
 
 use tealr::{
     mlu::mlua::{Lua, Result as LuaResult},
-    Direction, TypeWalker,
+    TypeWalker,
 };
 
 #[tealr::mlu::mlua::lua_module]
@@ -23,11 +23,11 @@ fn libpgteal(_: &Lua) -> LuaResult<Base> {
 
 pub(crate) fn generate_types() -> TypeWalker {
     TypeWalker::new()
-        .process_type_inline::<base::Base>(Direction::ToLua)
-        .process_type::<crate::pool::Pool>(Direction::ToLua)
-        .process_type::<crate::connection::LuaConnection>(Direction::ToLua)
-        .process_type::<crate::iter::Iter>(Direction::ToLua)
-        .process_type::<shared::Interval>(Direction::ToLua)
+        .process_type_inline::<base::Base>()
+        .process_type::<crate::pool::Pool>()
+        .process_type::<crate::connection::LuaConnection>()
+        .process_type::<crate::iter::Iter>()
+        .process_type::<shared::Interval>()
 }
 
 pub fn generate_defs() -> Result<String, FromUtf8Error> {
