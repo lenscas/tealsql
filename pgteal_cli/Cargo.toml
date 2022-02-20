@@ -19,6 +19,6 @@ glob = "0.3.0"
 serde = {version = "1", features = ["derive"]}
 shared = {path = "../shared"}
 sqlx = {version = "0.5.5", features = ["runtime-tokio-rustls", "postgres", "tls"], default-features = false}
-tealr = {git = "https://github.com/lenscas/tealr", features = ["derive", "mlua", "mlua_vendored", "mlua_module", "mlua_serialize"], default-features = false}
+tealr = {version = "0.8.0", git = "https://github.com/lenscas/tealr", features = ["derive", "mlua", "mlua_vendored", "mlua_module", "mlua_serialize"], default-features = false}
 tokio = {version = "*", features = ["rt", "macros"]}
 toml = "0.5.8"

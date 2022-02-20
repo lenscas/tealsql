@@ -4,7 +4,6 @@ on:
     # Sequence of patterns matched against refs/heads
     branches:
       - master
-      - chore/update_new_dog_gen
     paths:
       - "**/*.rs"
       - ".github/workflows/update_online_docs.yml"
