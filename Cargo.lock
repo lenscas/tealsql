@@ -1142,8 +1142,8 @@ dependencies = [
 
 [[package]]
 name = "tealr"
-version = "0.7.0"
-source = "git+https://github.com/lenscas/tealr#1ae6c3737e81a381f87585b7e5ebbc46eef02e82"
+version = "0.8.0"
+source = "git+https://github.com/lenscas/tealr#ba88eb9809460e0e878651ea71e31ea47dd50b7d"
 dependencies = [
  "bstr",
  "itertools",
@@ -1154,8 +1154,8 @@ dependencies = [
 
 [[package]]
 name = "tealr_derive"
-version = "0.6.0"
-source = "git+https://github.com/lenscas/tealr#1ae6c3737e81a381f87585b7e5ebbc46eef02e82"
+version = "0.8.0"
+source = "git+https://github.com/lenscas/tealr#ba88eb9809460e0e878651ea71e31ea47dd50b7d"
 dependencies = [
  "proc-macro2",
  "quote",
