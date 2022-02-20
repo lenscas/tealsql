@@ -34,7 +34,7 @@ jobs:
       - name: Build docs
         working-directory: ./
         #hack as there is no way to set a root folder (yet)
-        run: generate_docs --json libpgteal.json --name "/tealsql/libpgteal" --build_dir "pages" --root "tealsql"
+        run: generate_docs --json libpgteal.json --name "/tealsql/libpgteal" --build_folder "pages" --root "tealsql"
 
       - name: deploy
         uses: peaceiris/actions-gh-pages@v3
