@@ -9,3 +9,8 @@
 /test_cli/cli_test/queries_sql.lua
 /test_cli/cli_test/test.lua
 /test_cli/cli_test/queries_sql.tl
+/pages/*
+/*.data
+/*.data.old
+/flamegraph.svg
+/tealsql.json

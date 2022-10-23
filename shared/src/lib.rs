@@ -16,14 +16,14 @@ use sqlx_core::{
 };
 use tealr::NamePart;
 use tealr::{
-    mlu::mlua::{self, FromLua, LuaSerdeExt, Number, ToLua},
+    mlu::mlua::{self, FromLua, LuaSerdeExt, ToLua},
     TypeName,
 };
 use uuid::Uuid;
 
 pub use wrapper_types::Interval;
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Table(pub serde_json::Value);
 impl<'lua> mlua::FromLua<'lua> for Table {
     fn from_lua(
@@ -69,7 +69,7 @@ impl tealr::TypeName for Table {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Bool(pub bool);
 impl<'lua> ToLua<'lua> for Bool {
     fn to_lua(self, lua: &'lua mlua::Lua) -> mlua::Result<mlua::Value<'lua>> {
@@ -102,7 +102,7 @@ impl<'lua> FromLua<'lua> for Bool {
         }
     }
 }
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Integer(pub i64);
 impl<'lua> ToLua<'lua> for Integer {
     fn to_lua(self, lua: &'lua mlua::Lua) -> mlua::Result<mlua::Value<'lua>> {
@@ -130,6 +130,40 @@ impl<'lua> FromLua<'lua> for Integer {
             Err(mlua::Error::FromLuaConversionError {
                 from: lua_value.type_name(),
                 to: "integer",
+                message: None,
+            })
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct Number(mlua::Number);
+impl<'lua> ToLua<'lua> for Number {
+    fn to_lua(self, lua: &'lua mlua::Lua) -> mlua::Result<mlua::Value<'lua>> {
+        self.0.to_lua(lua)
+    }
+}
+impl TypeName for Number {
+    fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
+        i64::get_type_parts()
+    }
+
+    fn get_type_kind() -> tealr::KindOfType {
+        i64::get_type_kind()
+    }
+
+    fn collect_children(x: &mut Vec<tealr::TealType>) {
+        i64::collect_children(x)
+    }
+}
+impl<'lua> FromLua<'lua> for Number {
+    fn from_lua(lua_value: mlua::Value<'lua>, _: &'lua mlua::Lua) -> mlua::Result<Self> {
+        if let mlua::Value::Number(x) = lua_value {
+            Ok(Number(x))
+        } else {
+            Err(mlua::Error::FromLuaConversionError {
+                from: lua_value.type_name(),
+                to: "Number",
                 message: None,
             })
         }
@@ -395,14 +429,16 @@ impl TypeInformation {
                 query.bind(x.0)
             }
             (Some(Input::Integer(x)), TypeInformation::REAL) => query.bind(x.0 as f32),
-            (Some(Input::Number(x)), TypeInformation::REAL) => query.bind(x as f32),
+            (Some(Input::Number(x)), TypeInformation::REAL) => query.bind(x.0 as f32),
             (Some(Input::Integer(x)), TypeInformation::DOUBLE) => query.bind(x.0 as f64),
             (Some(Input::Number(x)), TypeInformation::DOUBLE | TypeInformation::Unknown) => {
-                query.bind(x)
+                query.bind(x.0)
             }
             (Some(Input::String(x)), TypeInformation::VARCHAR | TypeInformation::Unknown) => {
                 query.bind(x)
             }
+            (Some(Input::Integer(x)), TypeInformation::VARCHAR) => query.bind(x.0.to_string()),
+            //(Some(Input::Number(x)), TypeInformation::VARCHAR) => query.bind(x.0.to_string()),
             (Some(Input::Table(x)), TypeInformation::JSON | TypeInformation::Unknown) => {
                 query.bind(x.0)
             }

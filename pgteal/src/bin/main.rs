@@ -1,5 +1,5 @@
-use pgteal::generate_defs;
+use pgteal::generate_json;
 
 fn main() {
-    println!("{}", generate_defs().unwrap());
+    println!("{}", generate_json(true).unwrap());
 }

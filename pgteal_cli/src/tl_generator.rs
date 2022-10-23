@@ -319,7 +319,7 @@ pub(crate) fn write_to_file(
     let glued_types = parts
         .iter()
         .map(|v| [v.input_type.clone(), v.output_type.clone()])
-        .flat_map(std::array::IntoIter::new)
+        .flat_map(|x| x.into_iter())
         .collect::<Vec<_>>();
     let glued_types = prepare_types_for_writing(glued_types);
 

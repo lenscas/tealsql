@@ -6,6 +6,7 @@ local luasqlCon = sql:connect("postgres://tealsql:tealsql@localhost/tealsql")
 pgteal.connect("postgres://tealsql:tealsql@localhost/tealsql",function(con:pgteal.Connection):nil
     local totalTimeTealSync = 0.
     local totalTimeTealAsync = 0.
+    local totalTimeTealAsyncCustom = 0.
     local totalLuasql = 0.
 
     local loopedTimes = 0;
@@ -31,6 +32,14 @@ pgteal.connect("postgres://tealsql:tealsql@localhost/tealsql",function(con:pgtea
         totalTimeTealAsync = totalTimeTealAsync + timeNeeded
         collectgarbage()
         startTime = os.clock()
+        local d = con:fetch_all_async("SELECT * FROM t_random",{})
+        d:loop_all(function(_):nil return nil end)
+        endTime = os.clock()
+        timeNeeded = endTime - startTime
+        print("End time teal async custom loop: ",timeNeeded)
+        totalTimeTealAsyncCustom = totalTimeTealAsyncCustom + timeNeeded
+        collectgarbage()
+        startTime = os.clock()
         local c = luasqlCon:execute("SELECT * FROM t_random") as luasql.Cursor
         local res = c:fetch("s")
         while res do
@@ -44,5 +53,6 @@ pgteal.connect("postgres://tealsql:tealsql@localhost/tealsql",function(con:pgtea
     print("Totals:")
     print("Total teal sync:", totalTimeTealSync / loopedTimes)
     print("Total teal async:", totalTimeTealAsync / loopedTimes)
+    print("Total teal async custom:", totalTimeTealAsyncCustom / loopedTimes)
     print("Total lua sql:", totalLuasql / loopedTimes)
 end)
