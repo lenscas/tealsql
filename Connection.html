@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html>
 <html>
 
@@ -37,6 +39,13 @@
                 display: block;
             }
         }
+
+        .sticky-sidebar {
+            height: calc(100vh - 3.25rem);
+            position: sticky;
+            top: 0;
+            overflow: auto;
+        }
     </style>
 </head>
 
@@ -56,168 +65,232 @@
                             </div>
                         </div>
                     </div>
+                    <div class="navbar-item has-dropdown is-hoverable">
+                        <a class="navbar-link">
+                            Definition files
+                        </a>
+                        <div class="navbar-dropdown is-boxed">
+                            
+                                <a class="navbar-item" href="definitions/tealsql.d.tl">teal</a>
+                            
+                        </div>
+                    </div>
                 </div>
             </div>
         </nav>
 
         <section class="main-content columns is-fullheight">
-            <aside class="column is-2 is-narrow-mobile is-fullheight section is-hidden-mobile">
+            <aside class="column is-2 is-narrow-mobile is-fullheight section is-hidden-mobile sticky-sidebar">
                 <p class="menu-label is-hidden-touch">Navigation</p>
                 <ul class="menu-list">
-                    <li>
-                    <a href="/tealsql/index.html" class="">
-                        <span class="icon"><i class="fa fa-file"></i></span> libpgteal
-                    </a>
-                    <ul>
-                       
-                       <li>Methods</li>
-            <li>
-    <a href="/tealsql/index.html#connect_pool">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> connect_pool
-    </a>
-</li><li>
-    <a href="/tealsql/index.html#gen_defs">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> gen_defs
-    </a>
-</li><li>
-    <a href="/tealsql/index.html#gen_json">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> gen_json
-    </a>
-</li><li>
-    <a href="/tealsql/index.html#connect">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> connect
-    </a>
-</li><li>
-    <a href="/tealsql/index.html#nul">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> nul
-    </a>
-</li><li>
-    <a href="/tealsql/index.html#interval">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> interval
-    </a>
-</li><li>
-    <a href="/tealsql/index.html#help">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> help
-    </a>
-</li><li>
-    <a href="/tealsql/index.html#__index">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> __index
-    </a>
-</li>
-                    </ul>
-                </li><li>
-                    <a href="/tealsql/Pool.html" class="">
-                        <span class="icon"><i class="fa fa-file"></i></span> Pool
-                    </a>
-                    <ul>
-                       
-                       <li>Methods</li>
-            <li>
-    <a href="/tealsql/Pool.html#get_connection">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> get_connection
-    </a>
-</li><li>
-    <a href="/tealsql/Pool.html#help">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> help
-    </a>
-</li>
-                    </ul>
-                </li><li>
-                    <a href="/tealsql/Connection.html" class="is-active">
-                        <span class="icon"><i class="fa fa-file"></i></span> Connection
-                    </a>
-                    <ul>
-                       
-                       <li>Methods</li>
-            <li>
-    <a href="/tealsql/Connection.html#fetch_optional">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> fetch_optional
-    </a>
-</li><li>
-    <a href="/tealsql/Connection.html#fetch_all">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> fetch_all
-    </a>
-</li><li>
-    <a href="/tealsql/Connection.html#fetch_all_async">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> fetch_all_async
-    </a>
-</li><li>
-    <a href="/tealsql/Connection.html#execute">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> execute
-    </a>
-</li><li>
-    <a href="/tealsql/Connection.html#fetch_one">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> fetch_one
-    </a>
-</li><li>
-    <a href="/tealsql/Connection.html#insert">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> insert
-    </a>
-</li><li>
-    <a href="/tealsql/Connection.html#update">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> update
-    </a>
-</li><li>
-    <a href="/tealsql/Connection.html#delete">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> delete
-    </a>
-</li><li>
-    <a href="/tealsql/Connection.html#begin">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> begin
-    </a>
-</li><li>
-    <a href="/tealsql/Connection.html#help">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> help
-    </a>
-</li>
-                    </ul>
-                </li><li>
-                    <a href="/tealsql/Stream.html" class="">
-                        <span class="icon"><i class="fa fa-file"></i></span> Stream
-                    </a>
-                    <ul>
-                       
-                       <li>Methods</li>
-            <li>
-    <a href="/tealsql/Stream.html#iter">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> iter
-    </a>
-</li><li>
-    <a href="/tealsql/Stream.html#try_next">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> try_next
-    </a>
-</li><li>
-    <a href="/tealsql/Stream.html#next">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> next
-    </a>
-</li><li>
-    <a href="/tealsql/Stream.html#help">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> help
-    </a>
-</li>
-                    </ul>
-                </li><li>
-                    <a href="/tealsql/Interval.html" class="">
-                        <span class="icon"><i class="fa fa-file"></i></span> Interval
-                    </a>
-                    <ul>
-                       <li>Fields</li>
-            <li>
-    <a href="/tealsql/Interval.html#months">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> months
-    </a>
-</li><li>
-    <a href="/tealsql/Interval.html#days">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> days
-    </a>
-</li><li>
-    <a href="/tealsql/Interval.html#microseconds">
-        <span class="icon is-small"><i class="fa fa-link"></i></span> microseconds
-    </a>
-</li>
-                       
-                    </ul>
-                </li>
+                    
+                        <li>
+                            <a href="/tealsql/index.html" class="{is_active}">
+                                <span class="icon"><i class="fa fa-file"></i></span>
+                                tealsql                            </a>
+                            <ul>
+                                
+                                    <li>
+                                        <a href="/tealsql/index.html#connect_pool">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            connect_pool                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/index.html#gen_json">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            gen_json                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/index.html#connect">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            connect                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/index.html#nul">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            nul                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/index.html#interval">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            interval                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/index.html#help">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            help                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/index.html#__index">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            __index                                        </a>
+                                    </li>
+                                
+                            </ul>
+                        </li>
+                    
+                        <li>
+                            <a href="/tealsql/Pool.html" class="{is_active}">
+                                <span class="icon"><i class="fa fa-file"></i></span>
+                                Pool                            </a>
+                            <ul>
+                                
+                                    <li>
+                                        <a href="/tealsql/Pool.html#help">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            help                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Pool.html#get_connection">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            get_connection                                        </a>
+                                    </li>
+                                
+                            </ul>
+                        </li>
+                    
+                        <li>
+                            <a href="/tealsql/Connection.html" class="{is_active}">
+                                <span class="icon"><i class="fa fa-file"></i></span>
+                                Connection                            </a>
+                            <ul>
+                                
+                                    <li>
+                                        <a href="/tealsql/Connection.html#help">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            help                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Connection.html#fetch_optional">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            fetch_optional                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Connection.html#fetch_all">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            fetch_all                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Connection.html#fetch_all_async">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            fetch_all_async                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Connection.html#execute">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            execute                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Connection.html#fetch_one">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            fetch_one                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Connection.html#insert">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            insert                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Connection.html#update">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            update                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Connection.html#delete">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            delete                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Connection.html#begin">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            begin                                        </a>
+                                    </li>
+                                
+                            </ul>
+                        </li>
+                    
+                        <li>
+                            <a href="/tealsql/Stream.html" class="{is_active}">
+                                <span class="icon"><i class="fa fa-file"></i></span>
+                                Stream                            </a>
+                            <ul>
+                                
+                                    <li>
+                                        <a href="/tealsql/Stream.html#iter">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            iter                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Stream.html#help">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            help                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Stream.html#try_next">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            try_next                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Stream.html#next">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            next                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Stream.html#loop_all">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            loop_all                                        </a>
+                                    </li>
+                                
+                            </ul>
+                        </li>
+                    
+                        <li>
+                            <a href="/tealsql/Interval.html" class="{is_active}">
+                                <span class="icon"><i class="fa fa-file"></i></span>
+                                Interval                            </a>
+                            <ul>
+                                
+                                    <li>
+                                        <a href="/tealsql/Interval.html#months">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            months                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Interval.html#days">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            days                                        </a>
+                                    </li>
+                                
+                                    <li>
+                                        <a href="/tealsql/Interval.html#microseconds">
+                                            <span class="icon is-small"><i class="fa fa-link"></i></span>
+                                            microseconds                                        </a>
+                                    </li>
+                                
+                            </ul>
+                        </li>
+                    
                 </ul>
             </aside>
             <div class="container column is-10">
@@ -228,76 +301,232 @@
                         </div>
                         <div class="panel-block">
                             <div class="container">
-<div class="panel block">
-            <div class="panel-heading">
-                <p class="subtitle">
-                    Type doc:
-                </p>
-            </div>
-            <div class="panel-block">
-                <div class="container">
-                    <p>A single database connection</p>
+                                
+                                        <div class="panel block">
+                                            <div class="panel-heading">
+                                                <p class="subtitle">Type doc:</p>
+                                            </div>
+                                            <div class="panel-block">
+                                                
+    <div class="container">
+        <p>A single database connection</p>
 
-                </div>
+    </div>
+
+                                            </div>
+                                        </div>
+                                
+    <div class="panel block">
+        <div class="panel-heading">
+            <p class="subtitle">Fields:</p>
+        </div>
+        <div class="panel-block">
+            <div class="container">
+
             </div>
         </div>
-        <div class="panel block">
-            <div class="panel-heading">
-                <p class="subtitle">
-                    Fields:
-                </p>
-            </div>
-            <div class="panel-block">
+    </div>
+
+    <div class="panel block">
+        <div class="panel-heading">
+            <p class="subtitle">Methods:</p>
+        </div>
+        <div class="panel-block">
+            <div class="container">
+
+            <div class="card block">
+                <div id="fetch_optional" class="card-heading">
+                    <code class="card-header-title">
+                        <p>fetch_optional: 
+    function
+    (
+                <a href="/tealsql/Connection.html">Connection</a>
+
+    ,
+    (
+    string
+    ),(
+    {
+    integer
+    :
+    boolean
+     | 
+    integer
+     | 
+    integer
+     | 
+    {
+    any
+     : 
+    any
+     } 
+     | 
+    string
+    }
+    )
+    ):(
+    {
+    string
+    :
+    boolean
+     | 
+    integer
+     | 
+    integer
+     | 
+    {
+    any
+     : 
+    any
+     } 
+     | 
+    string
+    }
+    ) </p>
+                    </code>
+                </div>
+                
+                        <div class="card-content content">
+                            
+    <div class="container">
+        <p>Fetches 1 or 0 results from the database</p>
+<h2>Params:
+<h2>
+<ul>
+<li>
+<p>query: The query string that needs to be executed</p>
+</li>
+<li>
+<p>params: An array (table) containing the parameters that this function needs</p>
+</li>
+</ul>
+
+    </div>
+
+                        </div>
                 
             </div>
 
-        </div>
-        <div class="panel block">
-            <div class="panel-heading">
-                <p class="subtitle">
-                    Methods:
-                </p>
+            <div class="card block">
+                <div id="fetch_all" class="card-heading">
+                    <code class="card-header-title">
+                        <p>fetch_all: 
+    function
+    (
+                <a href="/tealsql/Connection.html">Connection</a>
+
+    ,
+    (
+    string
+    ),(
+    {
+    integer
+    :
+    boolean
+     | 
+    integer
+     | 
+    integer
+     | 
+    {
+    any
+     : 
+    any
+     } 
+     | 
+    string
+    }
+    )
+    ):(
+    {
+    {
+    string
+    :
+    boolean
+     | 
+    integer
+     | 
+    integer
+     | 
+    {
+    any
+     : 
+    any
+     } 
+     | 
+    string
+    }
+    }
+    ) </p>
+                    </code>
+                </div>
+                
+                        <div class="card-content content">
+                            
+    <div class="container">
+        <p>Fetches all results into a table</p>
+<h2>Params:
+<h2>
+<ul>
+<li>
+<p>query: The query string that needs to be executed</p>
+</li>
+<li>
+<p>params: An array (table) containing the parameters that this function needs</p>
+</li>
+</ul>
+
+    </div>
+
+                        </div>
+                
             </div>
-            <div class="panel-block">
-                <div class="container">
-                    <div class="card block">
-                        <div class="card-heading" id="fetch_optional">
-                            <code class="card-header-title"><p> fetch_optional: function(<a href="Connection.html">Connection</a>,(string),({integer:boolean | integer | number | {any : any }  | string})):({string:boolean | integer | number | {any : any }  | string})</p></code>
-                        </div>
-                        <div class="card-content content"><p>Fetches 1 or 0 results from the database</p>
-<h2>Params:</h2>
-<ul>
-<li>
-<p>query: The query string that needs to be executed</p>
-</li>
-<li>
-<p>params: An array (table) containing the parameters that this function needs</p>
-</li>
-</ul>
-</div>
-                    </div>
-                    <div class="card block">
-                        <div class="card-heading" id="fetch_all">
-                            <code class="card-header-title"><p> fetch_all: function(<a href="Connection.html">Connection</a>,(string),({integer:boolean | integer | number | {any : any }  | string})):({{string:boolean | integer | number | {any : any }  | string}})</p></code>
-                        </div>
-                        <div class="card-content content"><p>Fetches all results into a table</p>
-<h2>Params:</h2>
-<ul>
-<li>
-<p>query: The query string that needs to be executed</p>
-</li>
-<li>
-<p>params: An array (table) containing the parameters that this function needs</p>
-</li>
-</ul>
-</div>
-                    </div>
-                    <div class="card block">
-                        <div class="card-heading" id="fetch_all_async">
-                            <code class="card-header-title"><p> fetch_all_async: function(<a href="Connection.html">Connection</a>,(string),({integer:boolean | integer | number | {any : any }  | string}),(integer)):(<a href="Stream.html">Stream</a>)</p></code>
-                        </div>
-                        <div class="card-content content"><p>Runs a thread in the background that fetches all results. Allowing you to consume the results in batches, or do other things while the query is being executed</p>
-<h1>Params:</h1>
+
+            <div class="card block">
+                <div id="fetch_all_async" class="card-heading">
+                    <code class="card-header-title">
+                        <p>fetch_all_async: 
+    function
+    (
+                <a href="/tealsql/Connection.html">Connection</a>
+
+    ,
+    (
+    string
+    ),(
+    {
+    integer
+    :
+    boolean
+     | 
+    integer
+     | 
+    integer
+     | 
+    {
+    any
+     : 
+    any
+     } 
+     | 
+    string
+    }
+    ),(
+    integer
+    )
+    ):(
+                <a href="/tealsql/Stream.html">Stream</a>
+
+    ) </p>
+                    </code>
+                </div>
+                
+                        <div class="card-content content">
+                            
+    <div class="container">
+        <p>Runs a thread in the background that fetches all results. Allowing you to consume the results in batches, or do other things while the query is being executed</p>
+<h1>Params:
+<h1>
 <ul>
 <li>
 <p>query: The query string that needs to be executed</p>
@@ -309,14 +538,55 @@
 <p>chunk_count: How big the batches are that will be returned from the background thread to the main one. Higher batch count may improve performance</p>
 </li>
 </ul>
-</div>
-                    </div>
-                    <div class="card block">
-                        <div class="card-heading" id="execute">
-                            <code class="card-header-title"><p> execute: function(<a href="Connection.html">Connection</a>,(string),({integer:boolean | integer | number | {any : any }  | string})):(integer)</p></code>
+
+    </div>
+
                         </div>
-                        <div class="card-content content"><p>Fetches exactly 1 value from the database.</p>
-<h2>Params:</h2>
+                
+            </div>
+
+            <div class="card block">
+                <div id="execute" class="card-heading">
+                    <code class="card-header-title">
+                        <p>execute: 
+    function
+    (
+                <a href="/tealsql/Connection.html">Connection</a>
+
+    ,
+    (
+    string
+    ),(
+    {
+    integer
+    :
+    boolean
+     | 
+    integer
+     | 
+    integer
+     | 
+    {
+    any
+     : 
+    any
+     } 
+     | 
+    string
+    }
+    )
+    ):(
+    integer
+    ) </p>
+                    </code>
+                </div>
+                
+                        <div class="card-content content">
+                            
+    <div class="container">
+        <p>Fetches exactly 1 value from the database.</p>
+<h2>Params:
+<h2>
 <ul>
 <li>
 <p>query: The query string that needs to be executed</p>
@@ -325,13 +595,70 @@
 <p>params: An array (table) containing the parameters that this function needs</p>
 </li>
 </ul>
-</div>
-                    </div>
-                    <div class="card block">
-                        <div class="card-heading" id="fetch_one">
-                            <code class="card-header-title"><p> fetch_one: function(<a href="Connection.html">Connection</a>,(string),({integer:boolean | integer | number | {any : any }  | string})):({string:boolean | integer | number | {any : any }  | string})</p></code>
+
+    </div>
+
                         </div>
-                        <div class="card-content content"><h2>Params:</h2>
+                
+            </div>
+
+            <div class="card block">
+                <div id="fetch_one" class="card-heading">
+                    <code class="card-header-title">
+                        <p>fetch_one: 
+    function
+    (
+                <a href="/tealsql/Connection.html">Connection</a>
+
+    ,
+    (
+    string
+    ),(
+    {
+    integer
+    :
+    boolean
+     | 
+    integer
+     | 
+    integer
+     | 
+    {
+    any
+     : 
+    any
+     } 
+     | 
+    string
+    }
+    )
+    ):(
+    {
+    string
+    :
+    boolean
+     | 
+    integer
+     | 
+    integer
+     | 
+    {
+    any
+     : 
+    any
+     } 
+     | 
+    string
+    }
+    ) </p>
+                    </code>
+                </div>
+                
+                        <div class="card-content content">
+                            
+    <div class="container">
+        <h2>Params:
+<h2>
 <ul>
 <li>
 <p>query: The query string that needs to be executed</p>
@@ -340,17 +667,61 @@
 <p>params: An array (table) containing the parameters that this function needs</p>
 </li>
 </ul>
-</div>
-                    </div>
-                    <div class="card block">
-                        <div class="card-heading" id="insert">
-                            <code class="card-header-title"><p> insert: function(<a href="Connection.html">Connection</a>,(string),({string:boolean | integer | number | {any : any }  | string}),(boolean)):(integer)</p></code>
+
+    </div>
+
                         </div>
-                        <div class="card-content content"><p>A shorthand to run a basic insert command.</p>
-<h1>WARNING!:</h1>
+                
+            </div>
+
+            <div class="card block">
+                <div id="insert" class="card-heading">
+                    <code class="card-header-title">
+                        <p>insert: 
+    function
+    (
+                <a href="/tealsql/Connection.html">Connection</a>
+
+    ,
+    (
+    string
+    ),(
+    {
+    string
+    :
+    boolean
+     | 
+    integer
+     | 
+    integer
+     | 
+    {
+    any
+     : 
+    any
+     } 
+     | 
+    string
+    }
+    ),(
+    boolean
+    )
+    ):(
+    integer
+    ) </p>
+                    </code>
+                </div>
+                
+                        <div class="card-content content">
+                            
+    <div class="container">
+        <p>A shorthand to run a basic insert command.</p>
+<h1>WARNING!:
+<h1>
 <p>the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these values.</p>
 <p>The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.</p>
-<h2>Parameters:</h2>
+<h2>Parameters:
+<h2>
 <ul>
 <li>
 <p>name: the table name that will be inserted into</p>
@@ -362,13 +733,73 @@
 <p>needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s</p>
 </li>
 </ul>
-</div>
-                    </div>
-                    <div class="card block">
-                        <div class="card-heading" id="update">
-                            <code class="card-header-title"><p> update: function(<a href="Connection.html">Connection</a>,(string),({string:boolean | integer | number | {any : any }  | string}),({string:boolean | integer | number | {any : any }  | string}),(boolean)):(integer)</p></code>
+
+    </div>
+
                         </div>
-                        <div class="card-content content"><p>A shorthand to run a basic update command.</p>
+                
+            </div>
+
+            <div class="card block">
+                <div id="update" class="card-heading">
+                    <code class="card-header-title">
+                        <p>update: 
+    function
+    (
+                <a href="/tealsql/Connection.html">Connection</a>
+
+    ,
+    (
+    string
+    ),(
+    {
+    string
+    :
+    boolean
+     | 
+    integer
+     | 
+    integer
+     | 
+    {
+    any
+     : 
+    any
+     } 
+     | 
+    string
+    }
+    ),(
+    {
+    string
+    :
+    boolean
+     | 
+    integer
+     | 
+    integer
+     | 
+    {
+    any
+     : 
+    any
+     } 
+     | 
+    string
+    }
+    ),(
+    boolean
+    )
+    ):(
+    integer
+    ) </p>
+                    </code>
+                </div>
+                
+                        <div class="card-content content">
+                            
+    <div class="container">
+        <p>A shorthand to run a basic update command.</p>
 <p>WARNING!:</p>
 <p>the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these.</p>
 <p>The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.</p>
@@ -387,13 +818,55 @@
 <p>needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s</p>
 </li>
 </ul>
-</div>
-                    </div>
-                    <div class="card block">
-                        <div class="card-heading" id="delete">
-                            <code class="card-header-title"><p> delete: function(<a href="Connection.html">Connection</a>,(string),({string:boolean | integer | number | {any : any }  | string}),(boolean)):(integer)</p></code>
+
+    </div>
+
                         </div>
-                        <div class="card-content content"><p>A shorthand to run a basic delete command.</p>
+                
+            </div>
+
+            <div class="card block">
+                <div id="delete" class="card-heading">
+                    <code class="card-header-title">
+                        <p>delete: 
+    function
+    (
+                <a href="/tealsql/Connection.html">Connection</a>
+
+    ,
+    (
+    string
+    ),(
+    {
+    string
+    :
+    boolean
+     | 
+    integer
+     | 
+    integer
+     | 
+    {
+    any
+     : 
+    any
+     } 
+     | 
+    string
+    }
+    ),(
+    boolean
+    )
+    ):(
+    integer
+    ) </p>
+                    </code>
+                </div>
+                
+                        <div class="card-content content">
+                            
+    <div class="container">
+        <p>A shorthand to run a basic delete command.</p>
 <p>WARNING!:</p>
 <p>the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these values.</p>
 <p>The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.</p>
@@ -409,14 +882,51 @@
 <p>needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s</p>
 </li>
 </ul>
-</div>
-                    </div>
-                    <div class="card block">
-                        <div class="card-heading" id="begin">
-                            <code class="card-header-title"><p> begin: function&lt;Res&gt;(<a href="Connection.html">Connection</a>,function(<a href="Connection.html">Connection</a>):((boolean),(Res))):((boolean),(Res))</p></code>
+
+    </div>
+
                         </div>
-                        <div class="card-content content"><p>Starts a new transaction.</p>
-<h2>Params:</h2>
+                
+            </div>
+
+            <div class="card block">
+                <div id="begin" class="card-heading">
+                    <code class="card-header-title">
+                        <p>begin: 
+    function
+    &lt;
+    Res
+    &gt;
+    (
+                <a href="/tealsql/Connection.html">Connection</a>
+
+    ,
+    function(
+                <a href="/tealsql/Connection.html">Connection</a>
+
+    ):(
+    (
+    boolean
+    ),(
+    Res
+    )
+    )
+    ):(
+    (
+    boolean
+    ),(
+    Res
+    )
+    ) </p>
+                    </code>
+                </div>
+                
+                        <div class="card-content content">
+                            
+    <div class="container">
+        <p>Starts a new transaction.</p>
+<h2>Params:
+<h2>
 <ul>
 <li>func: The function that will be executed after the transaction has been made.</li>
 </ul>
@@ -425,11 +935,17 @@
 <p>After this function is executed the transaction will either be committed or rolled back.</p>
 <p>It will be rolled back if the callback threw an error, or returned false for the first return value</p>
 <p>Otherwise, it will be committed</p>
-<h2>Examples:</h2>
-<h3>Committing</h3>
-<div class="tabs"><ul><li class="select-teal"><a>Teal</a></li><li class="select-lua"><a>Lua</a></li></ul></div><div class="code-block-teal">
-<pre><code class="language-lua">
-local tealsql = require&quot;libpgteal&quot;
+<h2>Examples:
+<h2>
+<h3>Committing
+<h3>                                <div class="tabs">
+                                    <ul>
+                                        <li class="select-teal"><a>Teal</a></li>
+                                        <li class="select-lua"><a>Lua</a></li>
+                                    </ul>
+                                </div>
+                            <div class="code-block-teal">
+<pre><code class="language-lua">local tealsql = require(&quot;pages/tealsql/definitions.tealsql&quot;)
 tealsql.connect(&quot;postgres://userName:password@host/database&quot;,function(con:tealsql.Connection):{string:integer}
     local success, res = con:begin(function(con:tealsql.Connection):(boolean,integer)
         con:execute(&quot;INSERT INTO some_table (some_column) VALUES (1)&quot;);
@@ -441,8 +957,7 @@ end)
 
 </code></pre>
 </div><div class="code-block-lua">
-<pre><code class="language-lua">
-local tealsql = require(&quot;libpgteal&quot;)
+<pre><code class="language-lua">local tealsql = require(&quot;pages/tealsql/definitions.tealsql&quot;)
 tealsql.connect(&quot;postgres://userName:password@host/database&quot;, function(con)
    local success, res = con:begin(function(con)
       con:execute(&quot;INSERT INTO some_table (some_column) VALUES (1)&quot;);
@@ -452,10 +967,15 @@ tealsql.connect(&quot;postgres://userName:password@host/database&quot;, function
    assert(res == 1)
 end)</code></pre>
 </div>
-<h3>Manual Rollback</h3>
-<div class="tabs"><ul><li class="select-teal"><a>Teal</a></li><li class="select-lua"><a>Lua</a></li></ul></div><div class="code-block-teal">
-<pre><code class="language-lua">
-local tealsql = require&quot;libpgteal&quot;
+<h3>Manual Rollback
+<h3>                                <div class="tabs">
+                                    <ul>
+                                        <li class="select-teal"><a>Teal</a></li>
+                                        <li class="select-lua"><a>Lua</a></li>
+                                    </ul>
+                                </div>
+                            <div class="code-block-teal">
+<pre><code class="language-lua">local tealsql = require(&quot;pages/tealsql/definitions.tealsql&quot;)
 tealsql.connect(&quot;postgres://userName:password@host/database&quot;,function(con:tealsql.Connection):{string:integer}
     local success, res = con:begin(function(con:tealsql.Connection):(boolean,integer)
         con:execute(&quot;INSERT INTO some_table (some_column) VALUES (1)&quot;);
@@ -466,8 +986,7 @@ tealsql.connect(&quot;postgres://userName:password@host/database&quot;,function(
 end)
 </code></pre>
 </div><div class="code-block-lua">
-<pre><code class="language-lua">
-local tealsql = require(&quot;libpgteal&quot;)
+<pre><code class="language-lua">local tealsql = require(&quot;pages/tealsql/definitions.tealsql&quot;)
 tealsql.connect(&quot;postgres://userName:password@host/database&quot;, function(con)
    local success, res = con:begin(function(con)
       con:execute(&quot;INSERT INTO some_table (some_column) VALUES (1)&quot;);
@@ -477,10 +996,15 @@ tealsql.connect(&quot;postgres://userName:password@host/database&quot;, function
    assert(res == 1)
 end)</code></pre>
 </div>
-<h3>Rollback on error</h3>
-<div class="tabs"><ul><li class="select-teal"><a>Teal</a></li><li class="select-lua"><a>Lua</a></li></ul></div><div class="code-block-teal">
-<pre><code class="language-lua">
-local tealsql = require&quot;libpgteal&quot;
+<h3>Rollback on error
+<h3>                                <div class="tabs">
+                                    <ul>
+                                        <li class="select-teal"><a>Teal</a></li>
+                                        <li class="select-lua"><a>Lua</a></li>
+                                    </ul>
+                                </div>
+                            <div class="code-block-teal">
+<pre><code class="language-lua">local tealsql = require(&quot;pages/tealsql/definitions.tealsql&quot;)
 tealsql.connect(&quot;postgres://userName:password@host/database&quot;,function(con:tealsql.Connection):{string:integer}
     local success, res = con:begin(function(con:tealsql.Connection):(boolean,integer)
         con:execute(&quot;INSERT INTO some_table (some_column) VALUES (1)&quot;);
@@ -493,8 +1017,7 @@ end)
 
 </code></pre>
 </div><div class="code-block-lua">
-<pre><code class="language-lua">
-local tealsql = require(&quot;libpgteal&quot;)
+<pre><code class="language-lua">local tealsql = require(&quot;pages/tealsql/definitions.tealsql&quot;)
 tealsql.connect(&quot;postgres://userName:password@host/database&quot;, function(con)
    local success, res = con:begin(function(con)
       con:execute(&quot;INSERT INTO some_table (some_column) VALUES (1)&quot;);
@@ -503,17 +1026,33 @@ tealsql.connect(&quot;postgres://userName:password@host/database&quot;, function
 
    assert(res == 1)
 end)</code></pre>
-</div></div>
-                    </div>
-                    <div class="card block">
-                        <div class="card-heading" id="help">
-                            <code class="card-header-title"><p> help: function(string):(string)</p></code>
+</div>
+    </div>
+
                         </div>
-                        
-                    </div></div>
+                
+            </div>
+
+            <div class="card block">
+                <div id="help" class="card-heading">
+                    <code class="card-header-title">
+                        <p>help: 
+    function
+    (
+    string
+    ):(
+    string
+    ) </p>
+                    </code>
+                </div>
+                
+            </div>
+
             </div>
         </div>
-</div>
+    </div>
+
+                            </div>
                         </div>
                     </div>
                 </div>
