@@ -4,7 +4,7 @@ use serde::Serialize;
 use sqlx_core::postgres::types::PgInterval;
 use tealr::{
     mlu::mlua::{FromLua, ToLua, Value},
-    new_type, NamePart, TypeName,
+    new_type, Field, NamePart, RecordGenerator, TypeName,
 };
 
 #[derive(Serialize)]
@@ -67,15 +67,32 @@ impl<'lua> ToLua<'lua> for Interval {
     }
 }
 
-impl<'lua> tealr::TypeBody for Interval {
-    fn get_type_body(gen: &mut tealr::TypeGenerator) {
-        gen.fields
-            .push((Cow::Borrowed("months"), Cow::Borrowed("integer")));
-        gen.fields
-            .push((Cow::Borrowed("days"), Cow::Borrowed("integer")));
-        gen.fields
-            .push((Cow::Borrowed("microseconds"), Cow::Borrowed("integer")));
+impl tealr::TypeBody for Interval {
+    fn get_type_body() -> tealr::TypeGenerator {
+        let mut a = RecordGenerator::new::<Self>(false);
+        a.fields.push(Field {
+            name: Cow::Borrowed("months").into(),
+            teal_type: i32::get_type_parts(),
+        });
+        a.fields.push(Field {
+            name: Cow::Borrowed("days").into(),
+            teal_type: i32::get_type_parts(),
+        });
+        a.fields.push(Field {
+            name: Cow::Borrowed("microseconds").into(),
+            teal_type: i64::get_type_parts(),
+        });
+        tealr::TypeGenerator::Record(Box::new(a))
     }
+
+    // fn get_type_body(gen: &mut tealr::TypeGenerator) {
+    //     gen.fields
+    //         .push((Cow::Borrowed("months"), Cow::Borrowed("integer")));
+    //     gen.fields
+    //         .push((Cow::Borrowed("days"), Cow::Borrowed("integer")));
+    //     gen.fields
+    //         .push((Cow::Borrowed("microseconds"), Cow::Borrowed("integer")));
+    // }
 }
 
 fn get_interval_part(value: &Table, index: &str) -> tealr::mlu::mlua::Result<i64> {

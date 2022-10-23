@@ -16,7 +16,7 @@ jobs:
           rust-version: stable
       - name: Add doc gen
         #we do a debug install as those compile faster, and we don't need the runtime speed
-        run: cargo install --git https://github.com/lenscas/tealr_doc_gen --debug
+        run: cargo install tealr_doc_gen --version 0.3.0-alpha1 --debug
       - name: Checkout
         uses: actions/checkout@master
       - uses: leafo/gh-actions-lua@v8.0.0
@@ -29,12 +29,10 @@ jobs:
         working-directory: ./pgteal
         run: | 
           cargo run --bin main --features lua54,vendored > ../libpgteal.d.tl
-          cargo run --bin json --features lua54,vendored > ../libpgteal.json
       - name: Build docs
         working-directory: ./
         #hack as there is no way to set a root folder (yet)
-        run: generate_docs --json libpgteal.json --name "libpgteal" --build_folder "pages" --root "tealsql"
-
+        run: tealr_doc_gen run
       - name: deploy
         uses: peaceiris/actions-gh-pages@v3
         with:

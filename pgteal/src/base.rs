@@ -43,7 +43,7 @@ impl Display for Error {
     }
 }
 
-#[derive(Clone, tealr::MluaUserData, TypeName)]
+#[derive(Clone, tealr::mlu::UserData, TypeName)]
 pub struct Base {}
 
 impl TealData for Base {
@@ -61,7 +61,6 @@ The library also makes prepared statements easy to use as it does the binding of
         methods.document("## Example:");
         methods.document(
             "```teal_lua
-local tealsql = require\"libpgteal\"
 local pool = tealsql.connect_pool(\"postgres://userName:password@host/database\")
 local res = pool:get_connection(function(con:tealsql.Connection):{string:integer}
     return con:fetch_one(\"SELECT $1 as test\",{2}) as {string:integer}
@@ -77,10 +76,6 @@ assert(res.test ==  2)
                     .map_err(Error::from)?;
                 Ok(crate::pool::Pool::new(pool, runtime))
             })
-        });
-        methods.document("Returns the `.d.tl` file of this library.");
-        methods.add_function("gen_defs", |_, ()| {
-            crate::generate_defs().map_err(mlua::Error::external)
         });
         methods.document("Returns a json string representing the definitions of this library");
         methods.document("This can be used to generate online documentation");
@@ -102,7 +97,6 @@ assert(res.test ==  2)
         methods.document("## Example:");
         methods.document(
             "```teal_lua
-local tealsql = require\"libpgteal\"
 local res = tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
     return con:fetch_one(\"SELECT $1 as test\",{2}) as {string:integer}
 end)

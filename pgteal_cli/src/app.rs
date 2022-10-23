@@ -96,25 +96,25 @@ tealPattern:
         .get("teal_file_pattern")
         .map(|v| v.vals[0].to_str().unwrap().to_owned())
         .or(config.teal_pattern)
-        .ok_or(anyhow::anyhow!(
-            "--tealPattern not provided nor teal_pattern set in config"
-        ))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!("--tealPattern not provided nor teal_pattern set in config")
+        })?;
     let sql_pattern = matches
         .args
         .get("sql_file_pattern")
         .map(|v| v.vals[0].to_str().unwrap().to_owned())
         .or(config.sql_pattern)
-        .ok_or(anyhow::anyhow!(
-            "--sqlPattern not provided nor sql_pattern set in config"
-        ))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!("--sqlPattern not provided nor sql_pattern set in config")
+        })?;
     let connection_string = matches
         .args
         .get("connection_string")
         .map(|v| v.vals[0].to_str().unwrap().to_owned())
         .or(config.connection_string)
-        .ok_or(anyhow::anyhow!(
-            "--connection not provided nor connection_string set in config"
-        ))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!("--connection not provided nor connection_string set in config")
+        })?;
 
     Ok(Action::ParseFiles(Params {
         teal_pattern,

@@ -11,7 +11,7 @@ use sqlx::{
 };
 use tealr::mlu::mlua;
 use tealr::{mlu::TealData, TypeName};
-use tealr::{new_type, NamePart};
+use tealr::{new_type, NamePart, RecordGenerator};
 use tokio::runtime::Runtime;
 
 pub(crate) type QueryParamCollection = BTreeMap<i64, Input>;
@@ -19,9 +19,9 @@ pub(crate) type QueryParamCollection = BTreeMap<i64, Input>;
 use crate::bind_params::bind_params_on;
 use crate::{internal_connection_wrapper::WrappedConnection, iter::Iter, pg_row::LuaRow};
 
-fn get_lock<'a>(
-    con: &'a Arc<Mutex<Option<WrappedConnection>>>,
-) -> Result<MappedMutexGuard<'a, WrappedConnection>, mlua::Error> {
+fn get_lock(
+    con: &Arc<Mutex<Option<WrappedConnection>>>,
+) -> Result<MappedMutexGuard<WrappedConnection>, mlua::Error> {
     let x = con.lock();
     parking_lot::lock_api::MutexGuard::<'_, _, _>::try_map(x, |v| v.as_mut()).map_err(|_| {
         mlua::Error::external(crate::base::Error::Custom(
@@ -73,10 +73,11 @@ impl<'c> mlua::UserData for LuaConnection<'c> {
     }
 }
 impl tealr::TypeBody for LuaConnection<'static> {
-    //this allows tealr to generate the type definition for this type
-    fn get_type_body(gen: &mut ::tealr::TypeGenerator) {
-        gen.is_user_data = true;
-        <Self as ::tealr::mlu::TealData>::add_methods(gen);
+    fn get_type_body() -> tealr::TypeGenerator {
+        let mut a = RecordGenerator::new::<Self>(false);
+        a.is_user_data = false;
+        <Self as ::tealr::mlu::TealData>::add_methods(&mut a);
+        tealr::TypeGenerator::Record(Box::new(a))
     }
 }
 
@@ -100,7 +101,7 @@ fn sanitize_db_table_name(name: String, should_get_quoted: bool) -> Result<Strin
                 )
             )
         } else {
-            let name = "\"".to_string() + &name.replace(".", "\".\"") + "\"";
+            let name = "\"".to_string() + &name.replace('.', "\".\"") + "\"";
             Ok(name)
         }
     } else if name.starts_with(|v: char| (v.is_alphabetic() || v == '_'))
@@ -304,11 +305,11 @@ impl<'c> TealData for LuaConnection<'c> {
                                             sender.publish();
                                         });
                                     while let Some(()) = stream.next().await {
-                                        if is_done.load(std::sync::atomic::Ordering::SeqCst) {
+                                        if is_done.load(std::sync::atomic::Ordering::Acquire) {
                                             break
                                         }
                                     }
-                                    is_done.store(true,std::sync::atomic::Ordering::SeqCst );
+                                    is_done.store(true,std::sync::atomic::Ordering::Release );
                                 }
                                 Err(x) => {
                                     if let mlua::Error::ExternalError(x) = x {
@@ -370,7 +371,6 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.document("## Examples:");
         methods.document("### Committing");
         methods.document("```teal_lua
-local tealsql = require\"libpgteal\"
 tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
     local success, res = con:begin(function(con:tealsql.Connection):(boolean,integer)
         con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");
@@ -383,7 +383,6 @@ end)
 ```");
         methods.document("### Manual Rollback");
         methods.document("```teal_lua
-local tealsql = require\"libpgteal\"
 tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
     local success, res = con:begin(function(con:tealsql.Connection):(boolean,integer)
         con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");
@@ -395,7 +394,6 @@ end)
 ```");
         methods.document("### Rollback on error");
         methods.document("```teal_lua
-local tealsql = require\"libpgteal\"
 tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
     local success, res = con:begin(function(con:tealsql.Connection):(boolean,integer)
         con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");

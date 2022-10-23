@@ -1,0 +1,15 @@
+{
+  "doc_template": "Builtin",
+  "page_root": "tealsql",
+  "store_in": "pages",
+  "name": "tealsql",
+  "type_def_files": {
+    "runner": "Builtin",
+    "templates": {
+      "teal": {
+        "extension": ".d.tl",
+        "template": "Teal"
+      }
+    }
+  }
+}

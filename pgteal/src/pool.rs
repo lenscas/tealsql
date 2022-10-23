@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use sqlx::PgPool;
-use tealr::{mlu::mlua, mlu::TealData, TypeName};
+use tealr::{mlu::TealData, TypeName};
 use tokio::runtime::Runtime;
 
 use crate::connection::LuaConnection;
 
-#[derive(Clone, tealr::MluaUserData, TypeName)]
+#[derive(Clone, tealr::mlu::UserData, TypeName)]
 pub(crate) struct Pool {
     pool: PgPool,
     runtime: Arc<Runtime>,
