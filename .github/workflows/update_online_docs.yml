@@ -28,10 +28,9 @@ jobs:
       - name: Build tealsql for doc deploy
         working-directory: ./pgteal
         run: | 
-          cargo run --bin main --features lua54,vendored > ../libpgteal.d.tl
+          cargo run --bin main --features lua54,vendored > ../tealsql.json
       - name: Build docs
         working-directory: ./
-        #hack as there is no way to set a root folder (yet)
         run: tealr_doc_gen run
       - name: deploy
         uses: peaceiris/actions-gh-pages@v3
