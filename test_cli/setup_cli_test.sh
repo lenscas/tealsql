@@ -24,5 +24,5 @@ tealr_doc_gen run
 cd ../test_cli
 cp ../target/debug/libpgteal.so ./cli_test/libpgteal.so
 cp ../target/debug/libpgteal.d ./cli_test/libpgteal.d
-cp ../pages/tealsql/definitions/tealsql.d.tl ./libpgteal.d.tl
+cp ../pages/tealsql/definitions/tealsql.d.tl ./cli_test/libpgteal.d.tl
 ../target/debug/pgteal_cli --config config.toml
