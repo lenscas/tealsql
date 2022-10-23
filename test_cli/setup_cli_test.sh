@@ -19,9 +19,10 @@ cd pgteal_cli
 cargo build --features $FEATURE
 cd ../pgteal
 cargo build --lib --features $FEATURE,vendored
-cargo run --bin main --features $FEATURE,vendored > tealsql.json
+cargo run --bin main --features $FEATURE,vendored > ../tealsql.json
+cd ../
 tealr_doc_gen run
-cd ../test_cli
+cd ./test_cli
 cp ../target/debug/libpgteal.so ./cli_test/libpgteal.so
 cp ../target/debug/libpgteal.d ./cli_test/libpgteal.d
 cp ../pages/tealsql/definitions/tealsql.d.tl ./cli_test/libpgteal.d.tl
