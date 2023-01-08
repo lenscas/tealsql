@@ -16,7 +16,7 @@ jobs:
           rust-version: stable
       - name: Add doc gen
         #we do a debug install as those compile faster, and we don't need the runtime speed
-        run: cargo install tealr_doc_gen --version 0.3.0-alpha4 --debug
+        run: cargo install tealr_doc_gen --version 0.3.0-alpha2 --debug
       - name: Checkout
         uses: actions/checkout@master
       - uses: leafo/gh-actions-lua@v8.0.0
