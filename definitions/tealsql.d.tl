@@ -136,7 +136,7 @@ global record tealsql
         --
         --- params: An array (table) containing the parameters that this function needs
 
-        fetch_optional : function(Connection,(string),({integer:boolean | integer | integer | {any : any }  | string})):({string:boolean | integer | integer | {any : any }  | string})
+        fetch_optional : function(Connection,(string),({integer:boolean | integer | number | {any : any }  | string})):({string:boolean | integer | number | {any : any }  | string})
 
         --Fetches all results into a table
         --
@@ -146,7 +146,7 @@ global record tealsql
         --
         --- params: An array (table) containing the parameters that this function needs
 
-        fetch_all : function(Connection,(string),({integer:boolean | integer | integer | {any : any }  | string})):({{string:boolean | integer | integer | {any : any }  | string}})
+        fetch_all : function(Connection,(string),({integer:boolean | integer | number | {any : any }  | string})):({{string:boolean | integer | number | {any : any }  | string}})
 
         --Runs a thread in the background that fetches all results. Allowing you to consume the results in batches, or do other things while the query is being executed
         --
@@ -158,7 +158,7 @@ global record tealsql
         --
         --- chunk_count: How big the batches are that will be returned from the background thread to the main one. Higher batch count may improve performance
 
-        fetch_all_async : function(Connection,(string),({integer:boolean | integer | integer | {any : any }  | string}),(integer)):(Stream)
+        fetch_all_async : function(Connection,(string),({integer:boolean | integer | number | {any : any }  | string}),(integer)):(Stream)
 
         --Fetches exactly 1 value from the database.
         --
@@ -168,7 +168,7 @@ global record tealsql
         --
         --- params: An array (table) containing the parameters that this function needs
 
-        execute : function(Connection,(string),({integer:boolean | integer | integer | {any : any }  | string})):(integer)
+        execute : function(Connection,(string),({integer:boolean | integer | number | {any : any }  | string})):(integer)
 
         --## Params:
         --
@@ -176,7 +176,7 @@ global record tealsql
         --
         --- params: An array (table) containing the parameters that this function needs
 
-        fetch_one : function(Connection,(string),({integer:boolean | integer | integer | {any : any }  | string})):({string:boolean | integer | integer | {any : any }  | string})
+        fetch_one : function(Connection,(string),({integer:boolean | integer | number | {any : any }  | string})):({string:boolean | integer | number | {any : any }  | string})
 
         --A shorthand to run a basic insert command.
         --
@@ -194,7 +194,7 @@ global record tealsql
         --
         --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
 
-        insert : function(Connection,(string),({string:boolean | integer | integer | {any : any }  | string}),(boolean)):(integer)
+        insert : function(Connection,(string),({string:boolean | integer | number | {any : any }  | string}),(boolean)):(integer)
 
         --A shorthand to run a basic update command.
         --
@@ -214,7 +214,7 @@ global record tealsql
         --
         --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
 
-        update : function(Connection,(string),({string:boolean | integer | integer | {any : any }  | string}),({string:boolean | integer | integer | {any : any }  | string}),(boolean)):(integer)
+        update : function(Connection,(string),({string:boolean | integer | number | {any : any }  | string}),({string:boolean | integer | number | {any : any }  | string}),(boolean)):(integer)
 
         --A shorthand to run a basic delete command.
         --
@@ -232,7 +232,7 @@ global record tealsql
         --
         --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
 
-        delete : function(Connection,(string),({string:boolean | integer | integer | {any : any }  | string}),(boolean)):(integer)
+        delete : function(Connection,(string),({string:boolean | integer | number | {any : any }  | string}),(boolean)):(integer)
 
         --Starts a new transaction.
         --

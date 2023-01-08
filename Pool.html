@@ -33,11 +33,8 @@
         .footer {
             margin-top: -12px;
         }
-
-        @media screen and (max-width: 768px) {
-            #menu-toggle:checked+.nav-menu {
-                display: block;
-            }
+        .hideable-state:checked+.hideable-content {
+            display: block !important;
         }
 
         .sticky-sidebar {
@@ -46,22 +43,38 @@
             top: 0;
             overflow: auto;
         }
+        .max-width {
+            max-width:100%;
+        }
+        .hidden-themes-selector {
+            display:none;
+        }
     </style>
 </head>
 
 <body>
     <div id="app">
         <nav class="navbar has-shadow">
-            <div class="navbar-menu">
+            <div class="navbar-brand">
+                <div class="navbar-item is-hidden-desktop">
+                    <label for="menu-toggle" role="button" class="navbar-burger" aria-label="menu" aria-expanded="false">
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                    </label>
+                    
+                </div>
+            </div>
+            <div class="navbar-menu" id="navbar-id">
                 <div class="navbar-start">
                     <div class="navbar-item has-dropdown is-hoverable">
-                        <a class="navbar-link">
+                        <a class="navbar-link hidden-themes-selector">
                             Themes
                         </a>
                         <div class="navbar-dropdown is-boxed">
                             <div class="columns">
-                                <div class="collumn" id="theme-select-column1"></div>
-                                <div class="collumn" id="theme-select-column2"></div>
+                                <div class="collumn theme-select-column1"></div>
+                                <div class="collumn theme-select-column2"></div>
                             </div>
                         </div>
                     </div>
@@ -70,17 +83,56 @@
                             Definition files
                         </a>
                         <div class="navbar-dropdown is-boxed">
-                            
-                                <a class="navbar-item" href="definitions/tealsql.d.tl">teal</a>
-                            
+                        
+        <a class="navbar-item" href="definitions/tealsql.d.tl">teal</a>
+
                         </div>
                     </div>
                 </div>
             </div>
         </nav>
-
         <section class="main-content columns is-fullheight">
-            <aside class="column is-2 is-narrow-mobile is-fullheight section is-hidden-mobile sticky-sidebar">
+            <input type="checkbox" id="menu-toggle" class="is-hidden hideable-state"/>
+            <aside id="sidebar" class="column is-2 is-narrow-mobile is-fullheight section is-hidden-touch sticky-sidebar hideable-content">
+                <div class="is-hidden-desktop">
+                    <div class="dropdown is-hoverable">
+                        <div class="dropdown-trigger">
+                            <label for="theme-toggle" class="button hidden-themes-selector" aria-haspopup="true" aria-controls="dropdown-menu4">
+                                <span>Themes</span>
+                                <span class="icon is-small">
+                                    <i class="fa fa-angle-down" aria-hidden="true"></i>
+                                </span>
+                            </label>
+                        </div>
+                        <input type="checkbox" id="theme-toggle" class="is-hidden hideable-state"/>
+                        <div class="dropdown-menu hideable-content" id="dropdown-menu4" role="menu">
+                            <div class="dropdown-content">
+                                <div class="columns">
+                                    <div class="collumn theme-select-column1"></div>
+                                    <div class="collumn theme-select-column2"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dropdown is-hoverable">
+                        <div class="dropdown-trigger">
+                            <label for="definition-files-toggle" class="button" aria-haspopup="true" aria-controls="dropdown-menu5">
+                                <span>Def files</span>
+                                <span class="icon is-small">
+                                    <i class="fa fa-angle-down" aria-hidden="true"></i>
+                                </span>
+                            </label>
+                        </div>
+                        <input type="checkbox" id="definition-files-toggle" class="is-hidden hideable-state"/>
+                        <div class="dropdown-menu hideable-content" id="dropdown-menu5" role="menu">
+                            <div class="dropdown-content">
+                                
+        <a class="navbar-item" href="definitions/tealsql.d.tl">teal</a>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <p class="menu-label is-hidden-touch">Navigation</p>
                 <ul class="menu-list">
                     
@@ -297,17 +349,46 @@
                 <div class="section">
                     <div class="panel">
                         <div class="panel-heading">
-                            <h1 class="title">Pool</h1>
+                            <h1 class="title">
+                                Pool                                
+                                        <label style="float:right" for="type-uses" class="button">Uses</label>
+                                
+                            </h1>
                         </div>
                         <div class="panel-block">
-                            <div class="container">
+                            <div class="container max-width">
                                 
-                                        <div class="panel block">
-                                            <div class="panel-heading">
-                                                <p class="subtitle">Type doc:</p>
-                                            </div>
-                                            <div class="panel-block">
-                                                
+    <div class="panel max-width">
+        <input type="checkbox" id="type-uses" class="is-hidden hideable-state"/>
+        <div class="panel-block is-hidden hideable-content">
+
+            <h3 class="is-size-5">As Parameter:<h3>
+            <ul>
+ 
+                        <li>
+                            <a href="/tealsql/Pool.html#get_connection">Pool.get_connection</a>
+                        </li>
+
+            </ul>
+
+            <h3 class="is-size-5">Returned by:<h3>
+            <ul>
+ 
+                        <li>
+                            <a href="/tealsql/Base.html#connect_pool">Base.connect_pool</a>
+                        </li>
+
+            </ul>
+
+        </div>
+    </div>
+
+                                            <div class="panel max-width">
+                                                <div class="panel-heading">
+                                                    <p class="subtitle">Type doc:</p>
+                                                </div>
+                                                <div class="panel-block">
+                                                    
     <div class="container">
         <p>A connection pool containing at most 10 connections.</p>
 <p>Opening a database connection for each and every operation to the database can quickly become expensive.</p>
@@ -315,10 +396,10 @@
 
     </div>
 
+                                                </div>
                                             </div>
-                                        </div>
                                 
-    <div class="panel block">
+    <div class="panel max-width">
         <div class="panel-heading">
             <p class="subtitle">Fields:</p>
         </div>
@@ -329,7 +410,7 @@
         </div>
     </div>
 
-    <div class="panel block">
+    <div class="panel max-width">
         <div class="panel-heading">
             <p class="subtitle">Methods:</p>
         </div>
@@ -339,24 +420,11 @@
             <div class="card block">
                 <div id="get_connection" class="card-heading">
                     <code class="card-header-title">
-                        <p>get_connection: 
-    function
-    &lt;
-    Res
-    &gt;
-    (
+                        <p>get_connection: function&lt;Res&gt;(
                 <a href="/tealsql/Pool.html">Pool</a>
-
-    ,
-    function(
+,function(
                 <a href="/tealsql/Connection.html">Connection</a>
-
-    ):(
-    Res
-    )
-    ):(
-    Res
-    ) </p>
+):(Res)):(Res) </p>
                     </code>
                 </div>
                 
@@ -378,13 +446,7 @@
             <div class="card block">
                 <div id="help" class="card-heading">
                     <code class="card-header-title">
-                        <p>help: 
-    function
-    (
-    string
-    ):(
-    string
-    ) </p>
+                        <p>help: function(string):(string) </p>
                     </code>
                 </div>
                 
@@ -402,6 +464,7 @@
         </section>
     </div>
     <script>
+        document.querySelectorAll(".hidden-themes-selector").forEach(x=>x.classList.remove("hidden-themes-selector"))
         const bulmaTheme = document.getElementById("bulma-theme")
         const isDarkTheme = {
             "Cerulean": false,
@@ -461,8 +524,8 @@ crossorigin="anonymous" referrerpolicy="no-referrer" />`
             .then(x => {
 
                 const max = x.themes.length / 2
-                const col1 = document.getElementById("theme-select-column1")
-                const col2 = document.getElementById("theme-select-column2")
+                const col1 = document.querySelectorAll(".theme-select-column1")
+                const col2 = document.querySelectorAll(".theme-select-column2")
                 x.themes.forEach((z, k) => {
                     const a = document.createElement("a")
                     a.onclick = () => {
@@ -477,9 +540,9 @@ crossorigin="anonymous" referrerpolicy="no-referrer" />`
                     div.classList.add("navbar-item")
                     div.appendChild(a)
                     if (k < max) {
-                        col1.appendChild(div)
+                        col1.forEach(x=>x.appendChild(div.cloneNode(true)))
                     } else {
-                        col2.appendChild(div)
+                        col2.forEach(x=>x.appendChild(div.cloneNode(true)))
                     }
                 })
             })
