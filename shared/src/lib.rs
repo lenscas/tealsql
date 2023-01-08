@@ -14,11 +14,8 @@ use sqlx_core::{
     types::Type,
     value::Value,
 };
+use tealr::mlu::mlua::{self, FromLua, LuaSerdeExt, ToLua};
 use tealr::NamePart;
-use tealr::{
-    mlu::mlua::{self, FromLua, LuaSerdeExt, ToLua},
-    TypeName,
-};
 use uuid::Uuid;
 
 pub use wrapper_types::Interval;
@@ -56,6 +53,16 @@ impl<'lua> mlua::ToLua<'lua> for Table {
         LuaSerdeExt::to_value(lua, &self.0)
     }
 }
+
+impl<'lua> tealr::mlu::FromLuaExact<'lua> for Table {
+    fn from_lua_exact(
+        value: tealr::mlu::mlua::Value,
+        lua: &'lua mlua::Lua,
+    ) -> std::result::Result<Self, mlua::Error> {
+        Self::from_lua(value, lua)
+    }
+}
+
 impl tealr::TypeName for Table {
     fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
         tealr::mlu::mlua::Table::get_type_parts()
@@ -69,108 +76,7 @@ impl tealr::TypeName for Table {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct Bool(pub bool);
-impl<'lua> ToLua<'lua> for Bool {
-    fn to_lua(self, lua: &'lua mlua::Lua) -> mlua::Result<mlua::Value<'lua>> {
-        self.0.to_lua(lua)
-    }
-}
-impl TypeName for Bool {
-    fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
-        bool::get_type_parts()
-    }
-
-    fn get_type_kind() -> tealr::KindOfType {
-        bool::get_type_kind()
-    }
-
-    fn collect_children(x: &mut Vec<tealr::TealType>) {
-        bool::collect_children(x)
-    }
-}
-impl<'lua> FromLua<'lua> for Bool {
-    fn from_lua(lua_value: mlua::Value<'lua>, _: &'lua mlua::Lua) -> mlua::Result<Self> {
-        if let mlua::Value::Boolean(x) = lua_value {
-            Ok(Bool(x))
-        } else {
-            Err(mlua::Error::FromLuaConversionError {
-                from: lua_value.type_name(),
-                to: "bool",
-                message: None,
-            })
-        }
-    }
-}
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct Integer(pub i64);
-impl<'lua> ToLua<'lua> for Integer {
-    fn to_lua(self, lua: &'lua mlua::Lua) -> mlua::Result<mlua::Value<'lua>> {
-        self.0.to_lua(lua)
-    }
-}
-impl TypeName for Integer {
-    fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
-        i64::get_type_parts()
-    }
-
-    fn get_type_kind() -> tealr::KindOfType {
-        i64::get_type_kind()
-    }
-
-    fn collect_children(x: &mut Vec<tealr::TealType>) {
-        i64::collect_children(x)
-    }
-}
-impl<'lua> FromLua<'lua> for Integer {
-    fn from_lua(lua_value: mlua::Value<'lua>, _: &'lua mlua::Lua) -> mlua::Result<Self> {
-        if let mlua::Value::Integer(x) = lua_value {
-            Ok(Integer(x))
-        } else {
-            Err(mlua::Error::FromLuaConversionError {
-                from: lua_value.type_name(),
-                to: "integer",
-                message: None,
-            })
-        }
-    }
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct Number(mlua::Number);
-impl<'lua> ToLua<'lua> for Number {
-    fn to_lua(self, lua: &'lua mlua::Lua) -> mlua::Result<mlua::Value<'lua>> {
-        self.0.to_lua(lua)
-    }
-}
-impl TypeName for Number {
-    fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
-        i64::get_type_parts()
-    }
-
-    fn get_type_kind() -> tealr::KindOfType {
-        i64::get_type_kind()
-    }
-
-    fn collect_children(x: &mut Vec<tealr::TealType>) {
-        i64::collect_children(x)
-    }
-}
-impl<'lua> FromLua<'lua> for Number {
-    fn from_lua(lua_value: mlua::Value<'lua>, _: &'lua mlua::Lua) -> mlua::Result<Self> {
-        if let mlua::Value::Number(x) = lua_value {
-            Ok(Number(x))
-        } else {
-            Err(mlua::Error::FromLuaConversionError {
-                from: lua_value.type_name(),
-                to: "Number",
-                message: None,
-            })
-        }
-    }
-}
-
-tealr::create_union_mlua!(pub Derives(PartialEq,Debug) enum Input =  Bool | Integer | Number | Table | String );
+tealr::create_union_mlua!(pub Derives(PartialEq,Debug) enum Input =  bool | i64 | f64 | Table | String );
 
 #[derive(Debug)]
 pub enum TypeInformation {
@@ -419,30 +325,30 @@ impl TypeInformation {
             }
         })?;
         query = match (param_type, info) {
-            (Some(Input::Bool(x)), TypeInformation::BOOL | TypeInformation::Unknown) => {
-                query.bind(x.0)
+            (Some(Input::bool(x)), TypeInformation::BOOL | TypeInformation::Unknown) => {
+                query.bind(x)
             }
-            (Some(Input::Integer(x)), TypeInformation::CHARINT) => try_bind::<i8, _>(query, x.0)?,
-            (Some(Input::Integer(x)), TypeInformation::SMALLINT) => try_bind::<i16, _>(query, x.0)?,
-            (Some(Input::Integer(x)), TypeInformation::INT) => try_bind::<i32, _>(query, x.0)?,
-            (Some(Input::Integer(x)), TypeInformation::BIGINT | TypeInformation::Unknown) => {
-                query.bind(x.0)
+            (Some(Input::i64(x)), TypeInformation::CHARINT) => try_bind::<i8, _>(query, x)?,
+            (Some(Input::i64(x)), TypeInformation::SMALLINT) => try_bind::<i16, _>(query, x)?,
+            (Some(Input::i64(x)), TypeInformation::INT) => try_bind::<i32, _>(query, x)?,
+            (Some(Input::i64(x)), TypeInformation::BIGINT | TypeInformation::Unknown) => {
+                query.bind(x)
             }
-            (Some(Input::Integer(x)), TypeInformation::REAL) => query.bind(x.0 as f32),
-            (Some(Input::Number(x)), TypeInformation::REAL) => query.bind(x.0 as f32),
-            (Some(Input::Integer(x)), TypeInformation::DOUBLE) => query.bind(x.0 as f64),
-            (Some(Input::Number(x)), TypeInformation::DOUBLE | TypeInformation::Unknown) => {
-                query.bind(x.0)
+            (Some(Input::i64(x)), TypeInformation::REAL) => query.bind(x as f32),
+            (Some(Input::f64(x)), TypeInformation::REAL) => query.bind(x as f32),
+            (Some(Input::i64(x)), TypeInformation::DOUBLE) => query.bind(x as f64),
+            (Some(Input::f64(x)), TypeInformation::DOUBLE | TypeInformation::Unknown) => {
+                query.bind(x)
             }
             (Some(Input::String(x)), TypeInformation::VARCHAR | TypeInformation::Unknown) => {
                 query.bind(x)
             }
-            (Some(Input::Integer(x)), TypeInformation::VARCHAR) => query.bind(x.0.to_string()),
+            (Some(Input::i64(x)), TypeInformation::VARCHAR) => query.bind(x.to_string()),
             //(Some(Input::Number(x)), TypeInformation::VARCHAR) => query.bind(x.0.to_string()),
             (Some(Input::Table(x)), TypeInformation::JSON | TypeInformation::Unknown) => {
                 query.bind(x.0)
             }
-            (Some(Input::Integer(x)), TypeInformation::MONEY) => query.bind(PgMoney(x.0)),
+            (Some(Input::i64(x)), TypeInformation::MONEY) => query.bind(PgMoney(x)),
             (None, _) => query.bind::<Option<bool>>(None),
             (Some(Input::String(x)), TypeInformation::UUID) => Uuid::parse_str(&x)
                 .map_err(mlua::Error::external)
