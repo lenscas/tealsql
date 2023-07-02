@@ -593,7 +593,6 @@ end)
                 .join(",");
             let sql = format!(
                 "INSERT INTO \"{name}\" ({joined_keys}) VALUES ({markers}) ON CONFLICT ON CONSTRAINT \"{index}\" DO UPDATE SET {to_update};",
-                
             );
             println!("{sql}");
             values.extend(a.into_iter());

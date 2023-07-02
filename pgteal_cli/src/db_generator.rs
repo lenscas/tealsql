@@ -75,7 +75,7 @@ async fn get_usable_types_for_table(
         })
         .filter_map(|(key, t)| t.map(|teal_type| (key, teal_type)))
         .collect::<HashMap<String, TypeInformation>>();
-    let rows = row_information
+    row_information
         .into_iter()
         .map(|row| {
             let lua_type = fields.remove(&row.column_name).ok_or_else(|| {
@@ -95,8 +95,7 @@ async fn get_usable_types_for_table(
                 data_type: lua_type,
             })
         })
-        .collect();
-    rows
+        .collect()
 }
 
 struct RowInformation {
@@ -157,7 +156,7 @@ async fn get_table_information(
             table_name: x.get("table_name"),
         })
         .collect();
-    let rows = get_usable_types_for_table(&table_name, rows, connection.clone()).await?;
+    let rows = get_usable_types_for_table(table_name, rows, connection.clone()).await?;
     Ok(TableInformation {
         rows: rows
             .into_iter()
@@ -252,7 +251,7 @@ async fn create_teal_of_tables(
     let mut table_helpers = Vec::with_capacity(table_names.len());
     for table_name in table_names {
         let table_info =
-            get_table_information(db_name, table_name, &schema, connection.clone()).await?;
+            get_table_information(db_name, table_name, schema, connection.clone()).await?;
         let path = {
             let mut x = String::with_capacity(table_name.len() + schema.len() + db_name.len());
             x.push_str(db_name);
