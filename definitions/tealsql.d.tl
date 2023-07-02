@@ -198,13 +198,13 @@ global record tealsql
 
         --A shorthand to run a basic update command.
         --
-        --WARNING!:
+        --# WARNING!:
         --
         --the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these.
         --
         --The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.
         --
-        --Parameters:
+        --## Parameters:
         --
         --- name: the table name that will be inserted into
         --
@@ -215,6 +215,26 @@ global record tealsql
         --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
 
         update : function(Connection,(string),({string:boolean | integer | number | {any : any }  | string}),({string:boolean | integer | number | {any : any }  | string}),(boolean)):(integer)
+
+        --A simple shorthand to do an insert and specify how the row needs to be updated instead if there is a conflict on the given index
+        --
+        --WARNING!:
+        --
+        --the table, index and column names are NOT escaped. SQL injection IS possible if user input is allowed for these.
+        --
+        --The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.
+        --
+        --Parameters:
+        --
+        --- name: the table name that will be inserted into
+        --
+        --- values: A table used to construct the `where` part of the query. The keys are the column names and the values are the values that will be matched against
+        --
+        --- new_values: A table where the keys are the column names and the values are the values that this column will be updated to
+        --
+        --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
+
+        upsert : function(Connection,name : string , values : {string:boolean | integer | number | {any : any }  | string} , index : string , to_replace : {string:boolean | integer | number | {any : any }  | string} , needs_to_get_quoted : boolean):(integer)
 
         --A shorthand to run a basic delete command.
         --
@@ -287,7 +307,7 @@ global record tealsql
         --        con:execute("INSERT INTO some_table (some_column) VALUES (1)");
         --        error("This will also cause a rollback")
         --    end)
-        --    --we will never reach this part, as the error gets rethrown
+        --    --we will never reach this part, as the error gets rethrowed
         --    assert(res ==  1)
         --end)
         --
