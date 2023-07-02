@@ -1,5 +1,6 @@
 local pgteal = require "libpgteal"
 local queries = require "queries_sql"
+local mappings = require "db_mappings"
 
 local function compareFloats(a:number,b:number, key: any):boolean, string
     local threshold =  0.0000000500000
@@ -129,6 +130,36 @@ local function test(connection:pgteal.Connection):boolean
     assert(checkTableEqual(res6 as {any:any},insert as {any:any}))
     print("cleaning up")
     queries.delete_row.execute({varchar1 = insert.varchar1},connection)
+    print("Trying to upsert")
+    local select1 = mappings.testtable1.upsert(
+        connection,
+        {
+            id = 1,
+            name = "amazing"
+        },
+        "testtable1_pk",
+        {
+            id = 1,
+            name = "amazing"
+        }
+    )
+    assert(select1 == 1, "upsert didn't update exactly 1 row")
+    print("Getting table with id=1 to check if upsert worked")
+    local res7 = mappings.testtable1.select_one(connection,{id=1})
+    assert(res7.name == "amazing", "upsert did not update value")
+    print("getting every row in testtable1")
+    local res8 = mappings.testtable1.select_all(connection)
+    assert(checkTableEqual({{id=1,name="amazing"}}, res8), "did not get the expected data back.")
+    print("doing an update")
+    local res9 = mappings.testtable1.update(connection,{id=1},{name="updated"})
+    assert(res9 == 1, "Update did not return the expected amount of rows")
+    local check2 = mappings.testtable1.select_one(connection,{id=1})
+    assert(check2.name == "updated", "update did not update the expected value")
+    print("deleting our row to see if delete works")
+    local res10 = mappings.testtable1.delete(connection,{id=1})
+    assert(res10 == 1, "delete did not act on the expected amount of data")
+    local check3 = mappings.testtable1.select_by_all(connection,{id=1})
+    assert(#check3, "database contained data after delete while none was expected")
     return true
 end
 
@@ -171,4 +202,4 @@ local output_get_all : queries.get_all.ThisOutputName = {}
 local output_get_by_string : queries.get_by_string.ThisOutputName = {}
 output_get_all = output_get_by_string
 
-print("Both tests succeeded!")
+print("all tests succeeded!")

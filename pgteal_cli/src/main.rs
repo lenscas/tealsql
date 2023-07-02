@@ -1,4 +1,5 @@
 mod app;
+mod db_generator;
 mod sql_parser;
 mod tl_generator;
 
@@ -20,6 +21,7 @@ async fn main() -> Result<(), anyhow::Error> {
         teal_pattern,
         sql_pattern,
         connection_string,
+        create_helpers_for_tables,
     } = match get_app()? {
         app::Action::ParseFiles(x) => x,
         app::Action::PrintConfig(x) => {
@@ -73,6 +75,9 @@ async fn main() -> Result<(), anyhow::Error> {
             Err(x) => return Err(x.into()),
         };
         tl_generator::write_to_file(file.as_path(), &teal_pattern, parsed)?;
+    }
+    if let Some(x) = create_helpers_for_tables {
+        db_generator::generate_all_table_helpers(pool, x).await?;
     }
     Ok(())
 }

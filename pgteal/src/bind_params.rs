@@ -16,7 +16,6 @@ pub(crate) fn bind_params_on<'a, 'b: 'a>(
         .map_right(|n| (0..n).map(|_| None))
         .enumerate()
         .map(|(s, z)| (s + 1, z))
-        .map(|(s, z)| (s as i64, z))
         .map(|(key, info)| (params.remove(&key), info));
 
     for (lua_type, sql_type_info) in x {

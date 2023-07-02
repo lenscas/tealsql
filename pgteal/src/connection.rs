@@ -14,7 +14,7 @@ use tealr::{mlu::TealData, TypeName};
 use tealr::{new_type, NamePart, RecordGenerator};
 use tokio::runtime::Runtime;
 
-pub(crate) type QueryParamCollection = BTreeMap<i64, Input>;
+pub(crate) type QueryParamCollection = BTreeMap<usize, Input>;
 
 use crate::bind_params::bind_params_on;
 use crate::{internal_connection_wrapper::WrappedConnection, iter::Iter, pg_row::LuaRow};
@@ -175,8 +175,8 @@ impl<'c> LuaConnection<'c> {
     }
     fn extract_lua_to_table_fields(
         values: BTreeMap<String, Input>,
-        continue_from: i64,
-    ) -> Result<(Vec<String>, Vec<i64>, QueryParamCollection), mlua::Error> {
+        continue_from: usize,
+    ) -> Result<(Vec<String>, Vec<usize>, QueryParamCollection), mlua::Error> {
         let (keys, names): (Vec<String>, Vec<Input>) = values.into_iter().unzip();
         let keys = keys
             .into_iter()
@@ -186,7 +186,7 @@ impl<'c> LuaConnection<'c> {
         let values = names
             .into_iter()
             .enumerate()
-            .map(|(key, x)| (((key + 1) as i64) + continue_from, x))
+            .map(|(key, x)| ((key + 1) + continue_from, x))
             .inspect(|(key, _)| markers.push(*key))
             .collect::<QueryParamCollection>();
         Ok((keys, markers, values))
@@ -256,8 +256,9 @@ impl<'c> TealData for LuaConnection<'c> {
         );
         methods.add_method(
             "fetch_all",
-            |_, this, (query, mut params): (String, QueryParamCollection)| {
+            |_, this, (query, params): (String, Option<QueryParamCollection>)| {
                 this.runtime.block_on(async move {
+                    let mut params = params.unwrap_or_default();
                     let (query, mut v) = this.add_params(&query, &mut params).await?;
 
                     let mut stream = query.fetch(v.deref_mut());
@@ -399,7 +400,7 @@ tealsql.connect(\"postgres://userName:password@host/database\",function(con:teal
         con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");
         error(\"This will also cause a rollback\")
     end)
-    --we will never reach this part, as the error gets rethrown
+    --we will never reach this part, as the error gets rethrowed
     assert(res ==  1)
 end)
 
@@ -497,10 +498,10 @@ end)
             },
         );
         methods.document("A shorthand to run a basic update command.");
-        methods.document("WARNING!:");
+        methods.document("# WARNING!:");
         methods.document("the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these.");
         methods.document("The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.");
-        methods.document("Parameters:");
+        methods.document("## Parameters:");
         methods.document("- name: the table name that will be inserted into");
         methods.document("- old_values: A table used to construct the `where` part of the query. The keys are the column names and the values are the values that will be matched against");
         methods.document("- new_values: A table where the keys are the column names and the values are the values that this column will be updated to");
@@ -520,7 +521,7 @@ end)
                 let (old_keys, old_markers, mut old_values) =
                     Self::extract_lua_to_table_fields(old_values, 0)?;
                 let (new_keys, new_markers, mut new_values) =
-                    Self::extract_lua_to_table_fields(new_values, (old_markers.len()) as i64)?;
+                    Self::extract_lua_to_table_fields(new_values, old_markers.len())?;
                 let sql = format!(
                     "UPDATE \"{}\"
                     SET {}
@@ -544,6 +545,60 @@ end)
                 this.runtime.block_on(this.execute(sql, new_values))
             },
         );
+
+        tealr::mlu::create_named_parameters!(
+            UpsertParams with
+            name: String,
+            values: BTreeMap<String,Input>,
+            index: String,
+            to_replace: BTreeMap<String,Input>,
+            needs_to_get_quoted: Option<bool>,
+        );
+        methods.document(
+            "A simple shorthand to do an insert and specify how the row needs to be updated instead if there is a conflict on the given index",
+        );
+        methods.document("WARNING!:");
+        methods.document("the table, index and column names are NOT escaped. SQL injection IS possible if user input is allowed for these.");
+        methods.document("The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.");
+        methods.document("Parameters:");
+        methods.document("- name: the table name that will be inserted into");
+        methods.document("- values: A table used to construct the `where` part of the query. The keys are the column names and the values are the values that will be matched against");
+        methods.document("- new_values: A table where the keys are the column names and the values are the values that this column will be updated to");
+        methods.document("- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s");
+        methods.add_method("upsert", |_, this, params: UpsertParams| {
+            let UpsertParams {
+                name,
+                values,
+                index,
+                to_replace,
+                needs_to_get_quoted,
+            } = params;
+            println!("{:?}",to_replace);
+            let name = sanitize_db_table_name(name, needs_to_get_quoted.unwrap_or(false))?;
+            let (keys, markers, mut values) = Self::extract_lua_to_table_fields(values, 0)?;
+
+            let marker_length = markers.len();
+            let joined_keys = keys.join(",");
+            let markers = markers
+                .into_iter()
+                .map(|v| format!("${}", v))
+                .collect::<Vec<_>>()
+                .join(",");
+            let (update_keys, update_markers, a) = Self::extract_lua_to_table_fields(to_replace, marker_length)?;
+            let to_update = update_keys
+                .into_iter()
+                .zip(update_markers.iter())
+                .map(|(key, marker)| format!("{} = ${}", key, marker))
+                .collect::<Vec<_>>()
+                .join(",");
+            let sql = format!(
+                "INSERT INTO \"{name}\" ({joined_keys}) VALUES ({markers}) ON CONFLICT ON CONSTRAINT \"{index}\" DO UPDATE SET {to_update};",
+                
+            );
+            println!("{sql}");
+            values.extend(a.into_iter());
+            this.runtime.block_on(this.execute(sql, values))
+        });
         methods.document("A shorthand to run a basic delete command.");
         methods.document("WARNING!:");
         methods.document("the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these values.");

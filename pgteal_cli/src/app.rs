@@ -1,18 +1,28 @@
-use std::fs::read_to_string;
+use std::{fs::read_to_string, path::PathBuf};
 
 use clap::{App, Arg};
 use serde::{Deserialize, Serialize};
+
+#[derive(Default, Deserialize, Serialize)]
+pub struct HelperForTableConfig {
+    pub(crate) db: String,
+    pub(crate) schema: String,
+    pub(crate) file: PathBuf,
+    pub(crate) tables: Vec<String>,
+}
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct ConfigFile {
     connection_string: Option<String>,
     sql_pattern: Option<String>,
     teal_pattern: Option<String>,
+    helpers_for_tables: Option<Vec<HelperForTableConfig>>,
 }
 pub struct Params {
     pub teal_pattern: String,
     pub sql_pattern: String,
     pub connection_string: String,
+    pub create_helpers_for_tables: Option<Vec<HelperForTableConfig>>,
 }
 
 pub enum Action {
@@ -82,6 +92,12 @@ tealPattern:
             teal_pattern: Some("{dir}/{name}_{ext}.tl".to_string()),
             sql_pattern: Some("./src/**/*.sql".to_string()),
             connection_string: Some("postgres://userName:password@host/database".to_string()),
+            helpers_for_tables: Some(vec![HelperForTableConfig {
+                db: "some_db".into(),
+                schema: "some_schema".into(),
+                file: "./db_mappings.tl".into(),
+                tables: vec!["table1".into()],
+            }]),
         }));
     }
     let config: ConfigFile = matches
@@ -120,5 +136,6 @@ tealPattern:
         teal_pattern,
         sql_pattern,
         connection_string,
+        create_helpers_for_tables: config.helpers_for_tables,
     }))
 }
