@@ -1349,9 +1349,9 @@ dependencies = [
 
 [[package]]
 name = "triple_buffer"
-version = "5.0.6"
+version = "6.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "803966e5a8397a70d3d8111afa1597ba8381346d7de4720e9f539471d371a1a3"
+checksum = "88de9e10c067f441831d00cca341cf66fc69227ac6962292f944382dd61dacb9"
 dependencies = [
  "cache-padded",
 ]
