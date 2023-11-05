@@ -12,7 +12,7 @@ use sqlx::{
 use tealr::mlu::mlua;
 use tealr::{mlu::TealData, TypeName};
 use tealr::{new_type, NamePart, RecordGenerator};
-use tokio::runtime::Runtime;
+use tokio::runtime::{Builder, Runtime};
 
 pub(crate) type QueryParamCollection = BTreeMap<usize, Input>;
 
@@ -130,17 +130,19 @@ fn sanitize_db_table_name(name: String, should_get_quoted: bool) -> Result<Strin
 
 impl<'c> LuaConnection<'c> {
     pub(crate) fn drop_con(&self) -> Result<(), mlua::Error> {
-        let mut x = self
-            .connection
-            .as_ref()
-            .ok_or_else(|| {
-                mlua::Error::external(crate::base::Error::Custom(
-                    "Tried to drop a connection that we do not have access to.".to_string(),
-                ))
-            })?
-            .lock();
-        *x = None;
-        Ok(())
+        self.runtime.block_on(async {
+            let mut x = self
+                .connection
+                .as_ref()
+                .ok_or_else(|| {
+                    mlua::Error::external(crate::base::Error::Custom(
+                        "Tried to drop a connection that we do not have access to.".to_string(),
+                    ))
+                })?
+                .lock();
+            *x = None;
+            Ok(())
+        })
     }
     fn unwrap_connection_option(
         &self,
@@ -288,9 +290,9 @@ impl<'c> TealData for LuaConnection<'c> {
                 let chunk_count = chunk_count.unwrap_or(1).max(1);
                 let connection = this.unwrap_connection_option()?.clone();
                 let iter = Iter::from_func(move |mut sender, is_done| {
-                    let runtime = this.runtime.clone();
+                    let runtime = Builder::new_current_thread().enable_all().build().unwrap();
                     move || {
-                        runtime.clone().block_on (async {
+                        runtime.block_on (async {
                             match add_params(&connection, &query, &mut params).await {
                                 Ok((query, mut con)) => {
                                     let mut stream = query

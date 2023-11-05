@@ -6,7 +6,7 @@ use tealr::{
     mlu::{mlua, TealData},
     TypeName,
 };
-use tokio::runtime::Runtime;
+use tokio::runtime::Builder;
 
 use crate::{connection::LuaConnection, Res};
 
@@ -69,7 +69,8 @@ assert(res.test ==  2)
 ```\n",
         );
         methods.add_function("connect_pool", |_, connection_string: String| {
-            let runtime = Arc::new(Runtime::new()?);
+            println!("making runtime");
+            let runtime = Arc::new(Builder::new_current_thread().enable_all().build()?);
             runtime.clone().block_on(async move {
                 let pool = PgPool::connect(&connection_string)
                     .await
@@ -104,16 +105,16 @@ assert(res.test ==  2)
 ```\n",
         );
         methods.add_function("connect", |_,(connection_string, func): (String,tealr::mlu::TypedFunction<LuaConnection,Res>)| {
-            let runtime = Arc::new(Runtime::new()?);
+            let runtime = Arc::new(Builder::new_current_thread().enable_all().build()?);
             let con = runtime.clone().block_on(async move {
                 sqlx::postgres::PgConnection::connect(&connection_string)
                     .await
                     .map(|v|LuaConnection::new(v, runtime))
                     .map_err(Error::from)
-        })?;
-        let res =func.call(con.clone());
-        con.drop_con()?;
-        res
+            })?;
+            let res =func.call(con.clone());
+            con.drop_con()?;
+            res
         });
         methods.document("Returns the value used to represent `null` values in json.");
         methods.add_function("nul", |lua, ()| Ok(lua.null()));

@@ -1,7 +1,7 @@
 use std::{borrow::Cow, convert::TryFrom};
 
 use serde::Serialize;
-use sqlx_core::postgres::types::PgInterval;
+use sqlx::postgres::types::PgInterval;
 use tealr::{
     mlu::mlua::{FromLua, ToLua, Value},
     new_type, Field, NamePart, RecordGenerator, TypeName,

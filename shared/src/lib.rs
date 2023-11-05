@@ -3,16 +3,15 @@ use std::convert::{TryFrom, TryInto};
 use std::fmt::Debug;
 
 use serde::de::DeserializeOwned;
-use sqlx_core::{
+use sqlx::{
     encode::Encode,
     postgres::{
         types::{PgInterval, PgMoney},
         PgArguments, PgTypeInfo, PgValue, Postgres,
     },
     query::Query,
-    type_info::TypeInfo,
     types::Type,
-    value::Value,
+    TypeInfo, Value,
 };
 use tealr::mlu::mlua::{self, FromLua, LuaSerdeExt, ToLua};
 use tealr::NamePart;
