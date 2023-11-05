@@ -12,7 +12,7 @@ use sqlx::{
 use tealr::mlu::mlua;
 use tealr::{mlu::TealData, TypeName};
 use tealr::{new_type, NamePart, RecordGenerator};
-use tokio::runtime::{Builder, Runtime};
+use tokio::runtime::Runtime;
 
 pub(crate) type QueryParamCollection = BTreeMap<usize, Input>;
 
@@ -49,7 +49,6 @@ async fn add_params<'b, 'a: 'b>(
         statement.parameters().unwrap_or(Either::Right(0)),
         query,
     )?;
-
     Ok((query, v))
 }
 
@@ -289,8 +288,8 @@ impl<'c> TealData for LuaConnection<'c> {
             |_, this, (query, mut params, chunk_count): (String, QueryParamCollection, Option<usize>)|  {
                 let chunk_count = chunk_count.unwrap_or(1).max(1);
                 let connection = this.unwrap_connection_option()?.clone();
+                let runtime = this.runtime.clone();
                 let iter = Iter::from_func(move |mut sender, is_done| {
-                    let runtime = Builder::new_current_thread().enable_all().build().unwrap();
                     move || {
                         runtime.block_on (async {
                             match add_params(&connection, &query, &mut params).await {
@@ -497,6 +496,63 @@ end)
                         .join(",")
                 );
                 this.runtime.block_on(this.execute(sql, values))
+            },
+        );
+        methods.document("A shorthand to run a basic bulk insert command.");
+        methods.document("# WARNING!:");
+        methods.document("the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these values.");
+        methods.document("The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.");
+        methods.document("## Parameters:");
+        methods.document("- name: the table name that will be inserted into");
+        methods.document("- columns: the columns that the query will insert into");
+        methods.document("- values: an table containing a table for every row. Columns are entirely decided by order");
+        methods.document("- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s");
+        methods.add_method(
+            "bulk_insert",
+            |_,
+             this,
+             (name, columns, values, needs_to_get_quoted): (
+                String,
+                Vec<String>,
+                Vec<Vec<Input>>,
+                Option<bool>,
+            )| {
+                let needs_to_get_quoted = needs_to_get_quoted.unwrap_or(false);
+                let name = sanitize_db_table_name(name, needs_to_get_quoted)?;
+                let column_names = columns
+                    .into_iter()
+                    .map(|v| sanitize_db_table_name(v, needs_to_get_quoted))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let mut at = 0;
+                let mut new_values = BTreeMap::new();
+                let rows = values
+                    .into_iter()
+                    .map(|row| {
+                        let columns = row
+                            .into_iter()
+                            .map(|value| {
+                                let mut x = "$".to_string();
+                                at += 1;
+                                x.push_str(&at.to_string());
+                                new_values.insert(at, value);
+                                x
+                            })
+                            .collect::<Vec<_>>()
+                            .join(",");
+                        let mut row_str = "(".to_string();
+                        row_str.push_str(&columns);
+                        row_str.push(')');
+                        row_str
+                    })
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let sql = format!(
+                    "INSERT INTO \"{}\" ({}) VALUES {}",
+                    name,
+                    column_names.join(","),
+                    rows
+                );
+                this.runtime.block_on(this.execute(sql, new_values))
             },
         );
         methods.document("A shorthand to run a basic update command.");
