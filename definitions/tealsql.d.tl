@@ -196,6 +196,26 @@ global record tealsql
 
         insert : function(Connection,(string),({string:boolean | integer | number | {any : any }  | string}),(boolean)):(integer)
 
+        --A shorthand to run a basic bulk insert command.
+        --
+        --# WARNING!:
+        --
+        --the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these values.
+        --
+        --The values that get inserted ARE properly escaped. For these, SQL injection is NOT possible.
+        --
+        --## Parameters:
+        --
+        --- name: the table name that will be inserted into
+        --
+        --- columns: the columns that the query will insert into
+        --
+        --- values: an table containing a table for every row. Columns are entirely decided by order
+        --
+        --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
+
+        bulk_insert : function(Connection,(string),({string}),({{boolean | integer | number | {any : any }  | string}}),(boolean)):(integer)
+
         --A shorthand to run a basic update command.
         --
         --# WARNING!:
