@@ -1,5 +1,9 @@
 cd pgteal
-cargo run --features=lua54 --bin main > ../tests/libpgteal.d.tl
+cargo run --features=lua54 --bin main > ../tealsql.json
+cd ../
+tealr_doc_gen run
+mv pages/tealsql/definitions/tealsql.d.tl tests/libpgteal.d.tl
+cd pgteal
 cargo build --lib --release --features=lua54
 cd ..
 cp ./target/release/libpgteal.d ./tests/libpgteal.d 

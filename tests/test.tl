@@ -1,7 +1,7 @@
 
 
 
-function printTable(a: {any:any},tabs:integer)
+local function printTable(a: {any:any},tabs:integer)
     local z = {}
     for _=0,tabs do
         table.insert(z,"")
