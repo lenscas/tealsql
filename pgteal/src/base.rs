@@ -4,7 +4,7 @@ use mlua::{LuaSerdeExt, Value::Nil};
 use sqlx::{postgres::types::PgInterval, Connection, PgPool};
 use tealr::{
     mlu::{mlua, TealData},
-    TypeName,
+    ToTypename,
 };
 use tokio::runtime::Builder;
 
@@ -43,7 +43,7 @@ impl Display for Error {
     }
 }
 
-#[derive(Clone, tealr::mlu::UserData, TypeName)]
+#[derive(Clone, tealr::mlu::UserData, ToTypename)]
 pub struct Base {}
 
 impl TealData for Base {

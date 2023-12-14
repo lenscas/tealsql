@@ -10,6 +10,7 @@
 /test_cli/cli_test/test.lua
 /test_cli/cli_test/queries_sql.tl
 /test_cli/cli_test/db_mappings.tl
+/test_cli/cli_test/db_mappings.lua
 /pages/*
 /*.data
 /*.data.old

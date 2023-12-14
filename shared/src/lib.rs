@@ -14,7 +14,6 @@ use sqlx::{
     TypeInfo, Value,
 };
 use tealr::mlu::mlua::{self, FromLua, LuaSerdeExt, ToLua};
-use tealr::NamePart;
 use uuid::Uuid;
 
 pub use wrapper_types::Interval;
@@ -62,16 +61,9 @@ impl<'lua> tealr::mlu::FromLuaExact<'lua> for Table {
     }
 }
 
-impl tealr::TypeName for Table {
-    fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
-        tealr::mlu::mlua::Table::get_type_parts()
-    }
-    fn get_type_kind() -> tealr::KindOfType {
-        tealr::mlu::mlua::Table::get_type_kind()
-    }
-
-    fn collect_children(x: &mut Vec<tealr::TealType>) {
-        tealr::mlu::mlua::Table::collect_children(x)
+impl tealr::ToTypename for Table {
+    fn to_typename() -> tealr::Type {
+        tealr::mlu::mlua::Table::to_typename()
     }
 }
 

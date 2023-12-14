@@ -1,10 +1,10 @@
-use std::{borrow::Cow, convert::TryFrom};
+use std::convert::TryFrom;
 
 use serde::Serialize;
 use sqlx::postgres::types::PgInterval;
 use tealr::{
     mlu::mlua::{FromLua, ToLua, Value},
-    new_type, Field, NamePart, RecordGenerator, TypeName,
+    Field, KindOfType, RecordGenerator, ToTypename, Type,
 };
 
 #[derive(Serialize)]
@@ -31,9 +31,9 @@ impl From<Interval> for PgInterval {
     }
 }
 
-impl TypeName for Interval {
-    fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
-        new_type!(Interval)
+impl ToTypename for Interval {
+    fn to_typename() -> tealr::Type {
+        Type::new_single("Interval", KindOfType::External)
     }
 }
 impl<'lua> FromLua<'lua> for Interval {
@@ -70,18 +70,9 @@ impl<'lua> ToLua<'lua> for Interval {
 impl tealr::TypeBody for Interval {
     fn get_type_body() -> tealr::TypeGenerator {
         let mut a = RecordGenerator::new::<Self>(false);
-        a.fields.push(Field {
-            name: Cow::Borrowed("months").into(),
-            teal_type: i32::get_type_parts(),
-        });
-        a.fields.push(Field {
-            name: Cow::Borrowed("days").into(),
-            teal_type: i32::get_type_parts(),
-        });
-        a.fields.push(Field {
-            name: Cow::Borrowed("microseconds").into(),
-            teal_type: i64::get_type_parts(),
-        });
+        a.fields.push(Field::new::<i32>("months"));
+        a.fields.push(Field::new::<i32>("days"));
+        a.fields.push(Field::new::<i64>("microseconds"));
         tealr::TypeGenerator::Record(Box::new(a))
     }
 

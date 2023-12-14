@@ -10,8 +10,8 @@ use sqlx::{
     pool::PoolConnection, postgres::PgArguments, query::Query, Executor, Postgres, Statement,
 };
 use tealr::mlu::mlua;
-use tealr::{mlu::TealData, TypeName};
-use tealr::{new_type, NamePart, RecordGenerator};
+use tealr::mlu::TealData;
+use tealr::{RecordGenerator, ToTypename};
 use tokio::runtime::Runtime;
 
 pub(crate) type QueryParamCollection = BTreeMap<usize, Input>;
@@ -58,11 +58,11 @@ pub(crate) struct LuaConnection<'c> {
     connection: Option<Arc<Mutex<Option<WrappedConnection>>>>,
     _x: std::marker::PhantomData<&'c ()>,
 }
-impl<'c> TypeName for LuaConnection<'c> {
-    //the name of the type as known to teal.
-    fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
-        new_type!(Connection)
+impl<'c> ToTypename for LuaConnection<'c> {
+    fn to_typename() -> tealr::Type {
+        tealr::Type::new_single("Connection", tealr::KindOfType::External)
     }
+    //the name of the type as known to teal.
 }
 
 impl<'c> mlua::UserData for LuaConnection<'c> {
@@ -653,7 +653,7 @@ end)
                 "INSERT INTO \"{name}\" ({joined_keys}) VALUES ({markers}) ON CONFLICT ON CONSTRAINT \"{index}\" DO UPDATE SET {to_update};",
             );
             println!("{sql}");
-            values.extend(a.into_iter());
+            values.extend(a);
             this.runtime.block_on(this.execute(sql, values))
         });
         methods.document("A shorthand to run a basic delete command.");
@@ -677,7 +677,7 @@ end)
                 let (keys, markers, values) = Self::extract_lua_to_table_fields(check_on, 0)?;
                 let where_parts = keys
                     .into_iter()
-                    .zip(markers.into_iter())
+                    .zip(markers)
                     .map(|(key, marker)| format!("{} = ${}", key, marker))
                     .collect::<Vec<_>>()
                     .join("\n AND ");
