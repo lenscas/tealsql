@@ -4,6 +4,11 @@
   "store_in": "pages",
   "name": "tealsql",
   "is_global": false,
+  "lua_addon": {
+    "words": [],
+    "files": [],
+    "settings": {}
+  },
   "type_def_files": {
     "runner": "Builtin",
     "templates": {
