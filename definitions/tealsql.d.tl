@@ -1,6 +1,6 @@
 
 
-global record tealsql
+local record tealsql
     
     --Tealsql is a sql library made to be easy and safe to use. Its RAII centric API prevents mistakes like forgetting to close connections.
         --The library also makes prepared statements easy to use as it does the binding of parameters for you.
@@ -66,7 +66,7 @@ global record tealsql
         --```
         --
 
-        connect : function<Res>((string),(function(Connection):(Res))):(Res)
+        connect : function<Res>(string , function(Connection):(Res)):(Res)
 
         --Returns the value used to represent `null` values in json.
 
@@ -82,7 +82,7 @@ global record tealsql
         --
         --- microseconds: The amount of microseconds in this interval. Defaults to 0
 
-        interval : function((integer),(integer),(integer)):(Interval)
+        interval : function(integer , integer , integer):(Interval)
 
         help : function(string):(string)
 
@@ -113,7 +113,7 @@ global record tealsql
         --
         --A value returned from this function will also be returned by the connect function
 
-        get_connection : function<Res>(Pool,function(Connection):(Res)):(Res)
+        get_connection : function<Res>(self:Pool , function(Connection):(Res)):(Res)
 
         help : function(string):(string)
 
@@ -136,7 +136,7 @@ global record tealsql
         --
         --- params: An array (table) containing the parameters that this function needs
 
-        fetch_optional : function(Connection,(string),({integer:boolean | integer | number | {any : any }  | string})):({string:boolean | integer | number | {any : any }  | string})
+        fetch_optional : function(self:Connection , string , {integer : (boolean | integer | number | {any : any} | string)}):({string : (boolean | integer | number | {any : any} | string)})
 
         --Fetches all results into a table
         --
@@ -146,7 +146,7 @@ global record tealsql
         --
         --- params: An array (table) containing the parameters that this function needs
 
-        fetch_all : function(Connection,(string),({integer:boolean | integer | number | {any : any }  | string})):({{string:boolean | integer | number | {any : any }  | string}})
+        fetch_all : function(self:Connection , string , {integer : (boolean | integer | number | {any : any} | string)}):({{string : (boolean | integer | number | {any : any} | string)}})
 
         --Runs a thread in the background that fetches all results. Allowing you to consume the results in batches, or do other things while the query is being executed
         --
@@ -158,7 +158,7 @@ global record tealsql
         --
         --- chunk_count: How big the batches are that will be returned from the background thread to the main one. Higher batch count may improve performance
 
-        fetch_all_async : function(Connection,(string),({integer:boolean | integer | number | {any : any }  | string}),(integer)):(Stream)
+        fetch_all_async : function(self:Connection , string , {integer : (boolean | integer | number | {any : any} | string)} , integer):(Stream)
 
         --Fetches exactly 1 value from the database.
         --
@@ -168,7 +168,7 @@ global record tealsql
         --
         --- params: An array (table) containing the parameters that this function needs
 
-        execute : function(Connection,(string),({integer:boolean | integer | number | {any : any }  | string})):(integer)
+        execute : function(self:Connection , string , {integer : (boolean | integer | number | {any : any} | string)}):(integer)
 
         --## Params:
         --
@@ -176,7 +176,7 @@ global record tealsql
         --
         --- params: An array (table) containing the parameters that this function needs
 
-        fetch_one : function(Connection,(string),({integer:boolean | integer | number | {any : any }  | string})):({string:boolean | integer | number | {any : any }  | string})
+        fetch_one : function(self:Connection , string , {integer : (boolean | integer | number | {any : any} | string)}):({string : (boolean | integer | number | {any : any} | string)})
 
         --A shorthand to run a basic insert command.
         --
@@ -194,7 +194,7 @@ global record tealsql
         --
         --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
 
-        insert : function(Connection,(string),({string:boolean | integer | number | {any : any }  | string}),(boolean)):(integer)
+        insert : function(self:Connection , string , {string : (boolean | integer | number | {any : any} | string)} , boolean):(integer)
 
         --A shorthand to run a basic bulk insert command.
         --
@@ -214,7 +214,7 @@ global record tealsql
         --
         --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
 
-        bulk_insert : function(Connection,(string),({string}),({{boolean | integer | number | {any : any }  | string}}),(boolean)):(integer)
+        bulk_insert : function(self:Connection , string , {string} , {{(boolean | integer | number | {any : any} | string)}} , boolean):(integer)
 
         --A shorthand to run a basic update command.
         --
@@ -234,7 +234,7 @@ global record tealsql
         --
         --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
 
-        update : function(Connection,(string),({string:boolean | integer | number | {any : any }  | string}),({string:boolean | integer | number | {any : any }  | string}),(boolean)):(integer)
+        update : function(self:Connection , string , {string : (boolean | integer | number | {any : any} | string)} , {string : (boolean | integer | number | {any : any} | string)} , boolean):(integer)
 
         --A simple shorthand to do an insert and specify how the row needs to be updated instead if there is a conflict on the given index
         --
@@ -254,7 +254,7 @@ global record tealsql
         --
         --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
 
-        upsert : function(Connection,name : string , values : {string:boolean | integer | number | {any : any }  | string} , index : string , to_replace : {string:boolean | integer | number | {any : any }  | string} , needs_to_get_quoted : boolean):(integer)
+        upsert : function(self:Connection , name:string , values:{string : (boolean | integer | number | {any : any} | string)} , index:string , to_replace:{string : (boolean | integer | number | {any : any} | string)} , needs_to_get_quoted:boolean):(integer)
 
         --A shorthand to run a basic delete command.
         --
@@ -272,7 +272,7 @@ global record tealsql
         --
         --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
 
-        delete : function(Connection,(string),({string:boolean | integer | number | {any : any }  | string}),(boolean)):(integer)
+        delete : function(self:Connection , string , {string : (boolean | integer | number | {any : any} | string)} , boolean):(integer)
 
         --Starts a new transaction.
         --
@@ -335,7 +335,7 @@ global record tealsql
         --```
         --        
 
-        begin : function<Res>(Connection,function(Connection):((boolean),(Res))):((boolean),(Res))
+        begin : function<Res>(self:Connection , function(Connection):(boolean , Res)):(boolean , Res)
 
         help : function(string):(string)
 
@@ -354,19 +354,19 @@ global record tealsql
         --
         --Does NOT block the main thread.
 
-        try_next : function(Stream):((boolean),(any))
+        try_next : function(self:Stream):(boolean , any)
 
         --Waits until the next item is available and then returns it.
         --
         --DOES block the main thread
 
-        next : function(Stream):(any)
+        next : function(self:Stream):(any)
 
-        loop_all : function<X>(Stream,function(any):(X)):({X})
+        loop_all : function<X>(self:Stream , function(any):(X)):({X})
 
         --Constructs a blocking iterator that will loop over all the items.
 
-        iter : function(Stream):((function(Stream):(any)),(Stream))
+        iter : function(Stream):(function(Stream):(any) , Stream)
 
         help : function(string):(string)
 
