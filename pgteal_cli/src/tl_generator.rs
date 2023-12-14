@@ -391,21 +391,21 @@ fn get_path(path_template: &str, file_path: &Path) -> Result<OsString, anyhow::E
                     let path = file_path
                         .parent()
                         .map(ToOwned::to_owned)
-                        .unwrap_or_else(Default::default);
+                        .unwrap_or_default();
                     end_path.push(&path);
                 } else if x == "name" {
                     end_path.push(
                         &file_path
                             .file_stem()
                             .map(ToOwned::to_owned)
-                            .unwrap_or_else(OsString::new),
+                            .unwrap_or_default(),
                     )
                 } else if x == "ext" {
                     end_path.push(
                         &file_path
                             .extension()
                             .map(ToOwned::to_owned)
-                            .unwrap_or_else(OsString::new),
+                            .unwrap_or_default(),
                     )
                 } else {
                     return Err(anyhow::anyhow!("{} is not a valid pattern name", x));

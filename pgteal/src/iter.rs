@@ -4,7 +4,7 @@ use std::{
     sync::{atomic::AtomicBool, Arc, Mutex, MutexGuard},
     thread::JoinHandle,
 };
-use tealr::{mlu::TealData, new_type, NamePart};
+use tealr::mlu::TealData;
 
 use sqlx::postgres::PgRow;
 
@@ -24,9 +24,9 @@ pub(crate) struct Iter {
     close_check: Arc<AtomicBool>,
 }
 
-impl tealr::TypeName for Iter {
-    fn get_type_parts() -> std::borrow::Cow<'static, [NamePart]> {
-        new_type!(Stream)
+impl tealr::ToTypename for Iter {
+    fn to_typename() -> tealr::Type {
+        tealr::Type::new_single("Stream", tealr::KindOfType::External)
     }
 }
 
