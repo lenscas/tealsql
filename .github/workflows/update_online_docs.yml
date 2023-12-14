@@ -5,6 +5,7 @@ on:
     branches:
       - master
     paths:
+      - "tealr_doc_gen_config.json"
       - "**/*.rs"
       - ".github/workflows/update_online_docs.yml"
 jobs:
@@ -27,7 +28,7 @@ jobs:
         run: luarocks install tl
       - name: Build tealsql for doc deploy
         working-directory: ./pgteal
-        run: | 
+        run: |
           cargo run --bin main --features lua54,vendored > ../tealsql.json
       - name: Build docs
         working-directory: ./
