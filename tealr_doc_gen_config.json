@@ -3,6 +3,7 @@
   "page_root": "tealsql",
   "store_in": "pages",
   "name": "tealsql",
+  "is_global": false,
   "type_def_files": {
     "runner": "Builtin",
     "templates": {
