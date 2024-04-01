@@ -27,7 +27,7 @@ futures = "0.3.30"
 mlua = "0.8"
 parking_lot = "0.12.1"
 serde = { version = "1.0.196" }
-serde_json = "1.0.111"
+serde_json = "1.0.115"
 shared = { path = "../shared" }
 sqlx = { version = "0.7.3", features = [
     "runtime-tokio-rustls",
