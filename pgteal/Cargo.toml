@@ -25,7 +25,7 @@ vendored = ["tealr/mlua_vendored"]
 either = "1.11.0"
 futures = "0.3.30"
 mlua = "0.8"
-parking_lot = "0.12.1"
+parking_lot = "0.12.2"
 serde = { version = "1.0.196" }
 serde_json = "1.0.116"
 shared = { path = "../shared" }
