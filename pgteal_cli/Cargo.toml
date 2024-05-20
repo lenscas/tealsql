@@ -29,4 +29,4 @@ tealr = { version = "0.9.0-alpha4", git = "https://github.com/lenscas/tealr", fe
     "mlua_serialize",
 ], default-features = false }
 tokio = { version = "*", features = ["rt", "macros", "rt-multi-thread"] }
-toml = "0.8.8"
+toml = "0.8.13"
