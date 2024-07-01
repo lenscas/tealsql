@@ -22,7 +22,7 @@ lua54 = ["tealr/mlua_lua54"]
 vendored = ["tealr/mlua_vendored"]
 
 [dependencies]
-either = "1.11.0"
+either = "1.13.0"
 futures = "0.3.30"
 mlua = "0.8"
 parking_lot = "0.12.2"
