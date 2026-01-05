@@ -29,7 +29,7 @@ jobs:
       - name: Build tealsql for doc deploy
         working-directory: ./pgteal
         run: |
-          cargo run --bin main --features lua54,vendored > ../tealsql.json
+          cargo run --bin main --features lua54 > ../tealsql.json
       - name: Build docs
         working-directory: ./
         run: tealr_doc_gen run

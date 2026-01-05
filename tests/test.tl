@@ -20,6 +20,17 @@ end
 
 
 local pgteal = require "libpgteal"
+
+pgteal.connect("postgres://tealsql:tealsql@localhost/tealsql",function(con:pgteal.Connection):nil
+    local success, res = con:begin(function(con:pgteal.Connection):(boolean,integer)
+        con:execute("SELECT * FROM everything WHERE \"varchar1\" = 'nice'", {});
+        return true, 1
+    end)
+    assert(success)
+    assert(res ==  1)
+    return nil
+end)
+
 local pool = pgteal.connect_pool("postgres://tealsql:tealsql@localhost/tealsql")
 pool:get_connection(function(x:pgteal.Connection):boolean
     local res= x:fetch_one("SELECT * FROM everything WHERE \"varchar1\" = 'nice'",{});
@@ -38,13 +49,13 @@ pool:get_connection(function(x:pgteal.Connection):boolean
     print("------")
     print("now the short hands")
     print("-----------")
-    print("insert:",x:insert("everything",{varchar1="epic!",money1=24444001}))
+    print("insert:",x:insert("everything",{varchar1="epic!",money1=24444001},nil))
     res = x:fetch_one("SELECT * FROM everything WHERE \"varchar1\"=$1",{"epic!"});
     assert(res.money1 == 24444001)
-    print("update:",x:update("everything",{varchar1="epic!"},{money1=0}))
+    print("update:",x:update("everything",{varchar1="epic!"},{money1=0},nil))
     res = x:fetch_one("SELECT * FROM everything WHERE \"varchar1\"=$1",{"epic!"});
     assert(res.money1 == 0)
-    print("delete:",x:delete("everything",{varchar1="epic!"}))
+    print("delete:",x:delete("everything",{varchar1="epic!"},nil))
     assert(x:fetch_one("SELECT COUNT(*) as counter FROM everything WHERE \"varchar1\"=$1",{"epic!"}).counter == 0);
     return true
 end)

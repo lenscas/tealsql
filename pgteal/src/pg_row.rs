@@ -15,11 +15,11 @@ impl ToTypename for LuaRow {
 }
 
 impl LuaRow {
-    pub fn into_lua_cached<'lua>(
+    pub fn into_lua_cached(
         self,
-        lua: &'lua mlua::Lua,
-        table: mlua::Table<'lua>,
-    ) -> std::result::Result<mlua::Value<'lua>, mlua::Error> {
+        lua: &tealr::mlu::mlua::Lua,
+        table: mlua::Table,
+    ) -> std::result::Result<mlua::Value, mlua::Error> {
         let columns = self.row.columns();
         let names = columns
             .iter()
@@ -47,8 +47,11 @@ impl LuaRow {
     }
 }
 
-impl<'lua> mlua::ToLua<'lua> for LuaRow {
-    fn to_lua(self, lua: &'lua mlua::Lua) -> std::result::Result<mlua::Value<'lua>, mlua::Error> {
+impl tealr::mlu::mlua::IntoLua for LuaRow {
+    fn into_lua(
+        self,
+        lua: &tealr::mlu::mlua::Lua,
+    ) -> std::result::Result<mlua::Value, mlua::Error> {
         self.into_lua_cached(lua, lua.create_table()?)
     }
 }

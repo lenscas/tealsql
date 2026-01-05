@@ -6,7 +6,7 @@ local function compareFloats(a:number,b:number, key: any):boolean, string
     local threshold =  0.0000000500000
     local diff = math.abs(a - b)
     if diff > threshold then
-        return false, "missmatch at key " .. tostring(key) .. " left: " .. tostring(a) .." right: " .. tostring(b) .. " it is " .. diff - threshold .. " too big"
+        return false, "mismatch at key " .. tostring(key) .. " left: " .. tostring(a) .." right: " .. tostring(b) .. " it is " .. diff - threshold .. " too big"
     end
     return true
 end
@@ -21,7 +21,7 @@ local function checkTableEqual(a:{any:any},b:{any:any}):boolean,string
                     return false, message
                 end
             else
-                return false, "missmatch at key " .. tostring(k) .. " left: " .. tostring(v) .." right: " .. tostring(inb)
+                return false, "mismatch at key " .. tostring(k) .. " left: " .. tostring(v) .." right: " .. tostring(inb)
             end
         else
             if v is number and inb is number then

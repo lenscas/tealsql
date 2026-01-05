@@ -18,8 +18,8 @@ echo "Using lua version: " $FEATURE
 cd pgteal_cli
 cargo build --features $FEATURE
 cd ../pgteal
-cargo build --lib --features $FEATURE,vendored
-cargo run --bin main --features $FEATURE,vendored > ../tealsql.json
+cargo build --lib --features $FEATURE
+cargo run --bin main --features $FEATURE > ../tealsql.json
 cd ../
 tealr_doc_gen run
 cd ./test_cli

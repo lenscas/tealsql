@@ -1,12 +1,11 @@
-use std::{collections::HashMap, error::Error, fmt::Display, fs::read_to_string, path::Path};
-
 use anyhow::Context;
-
+use std::fmt::Write;
+use std::{collections::HashMap, error::Error, fmt::Display, fs::read_to_string, path::Path};
 fn show_config(config: &HashMap<String, String>) -> String {
-    config
-        .iter()
-        .map(|(key, value)| format!("{key} = {value}\n"))
-        .collect::<String>()
+    config.iter().fold(String::new(), |mut a, (key, value)| {
+        let _ = writeln!(a, "{key} = {value}");
+        a
+    })
 }
 
 pub(crate) struct ParsedSql {
@@ -104,7 +103,13 @@ impl Display for ParseErrors {
                         "No name found in config for query.\nConfig:\n{}\nParsed Query:{}\n\nNote: Values found with a similar name:\n{}",
                         show_config(config),
                         query,
-                        similar_names.iter().map(|(key,value)| format!("{key} = {value}\n")).collect::<String>()
+                        similar_names.iter().fold(
+                            String::new(),
+                            |mut a, (key,value)| {
+                                let _ = writeln!(a, "{key} = {value}");
+                                a
+                            }
+                        )
                     )
                 }
             }

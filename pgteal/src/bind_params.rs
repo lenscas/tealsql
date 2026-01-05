@@ -10,7 +10,7 @@ pub(crate) fn bind_params_on<'a, 'b: 'a>(
     params: &'b mut QueryParamCollection,
     info: Either<&[PgTypeInfo], usize>,
     mut query: Query<'a, Postgres, PgArguments>,
-) -> Result<Query<'a, Postgres, PgArguments>, mlua::Error> {
+) -> Result<Query<'a, Postgres, PgArguments>, tealr::mlu::mlua::Error> {
     let x = info
         .map_left(|v| v.iter().map(Some))
         .map_right(|n| (0..n).map(|_| None))

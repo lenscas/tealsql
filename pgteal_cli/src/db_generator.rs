@@ -175,19 +175,19 @@ fn generate_table_helpers(table_name: &str, type_path: &str) -> String {
         {{{table_name}= {{
             {table_name} = {type_path},
             insert = function (connection:libpgteal.Connection, value: {type_path}): number
-                return connection:insert(\"{table_name}\", value as {{string:boolean | integer | number | {{any : any }}  | string}})
+                return connection:insert(\"{table_name}\", value, nil)
             end,
             update = function(connection:libpgteal.Connection, old_value: {type_path}, new_value:{type_path}):number
-                return connection:update(\"{table_name}\", old_value as {{string:boolean | integer | number | {{any : any }}  | string}}, new_value as {{string:boolean | integer | number | {{any : any }}  | string}})
+                return connection:update(\"{table_name}\", old_value, new_value, nil)
             end,
             upsert = function(connection:libpgteal.Connection, new_values: {type_path}, index:string, to_replace_on_conflict: {type_path}):number
-                return connection:upsert(\"{table_name}\", new_values as {{string:boolean | integer | number | {{any : any }}  | string}}, index , to_replace_on_conflict as {{string:boolean | integer | number | {{any : any }}  | string}})
+                return connection:upsert(\"{table_name}\", new_values, index , to_replace_on_conflict, nil)
             end,
             delete = function(connection:libpgteal.Connection, old_value: {type_path}):number
-                return connection:delete(\"{table_name}\", old_value as {{string:boolean | integer | number | {{any : any }}  | string}})
+                return connection:delete(\"{table_name}\", old_value, nil)
             end,
             select_all = function(connection:libpgteal.Connection):{{{type_path}}}
-                return connection:fetch_all(\"SELECT * FROM {table_name}\") as {{{type_path}}}
+                return connection:fetch_all(\"SELECT * FROM {table_name}\", {{}}) as {{{type_path}}}
             end,
             select_by_all = function(connection:libpgteal.Connection, partial:{type_path}):{{{type_path}}}
                 local where_part_checks = {{}}

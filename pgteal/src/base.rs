@@ -1,6 +1,6 @@
 use std::{fmt::Display, sync::Arc};
 
-use mlua::{LuaSerdeExt, Value::Nil};
+use mlua::LuaSerdeExt;
 use sqlx::{postgres::types::PgInterval, Connection, PgPool};
 use tealr::{
     mlu::{mlua, TealData},
@@ -47,7 +47,7 @@ impl Display for Error {
 pub struct Base {}
 
 impl TealData for Base {
-    fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
+    fn add_methods<T: tealr::mlu::TealDataMethods<Self>>(methods: &mut T) {
         methods.document_type("Tealsql is a sql library made to be easy and safe to use. Its RAII centric API prevents mistakes like forgetting to close connections.
 The library also makes prepared statements easy to use as it does the binding of parameters for you.");
         methods.document_type("There are also several helper functions to do basic tasks like deleting, updating or inserting values. These allow you to quickly get something going without the need to write SQL for these basic operation");
@@ -62,7 +62,7 @@ The library also makes prepared statements easy to use as it does the binding of
         methods.document(
             "```teal_lua
 local pool = tealsql.connect_pool(\"postgres://userName:password@host/database\")
-local res = pool:get_connection(function(con:tealsql.Connection):{string:integer}
+local res:{string:integer} = pool:get_connection(function(con:tealsql.Connection):{string:integer}
     return con:fetch_one(\"SELECT $1 as test\",{2}) as {string:integer}
 end)
 assert(res.test ==  2)
@@ -97,34 +97,33 @@ assert(res.test ==  2)
         methods.document("## Example:");
         methods.document(
             "```teal_lua
-local res = tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
+local res: {string:integer} = tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
     return con:fetch_one(\"SELECT $1 as test\",{2}) as {string:integer}
 end)
 assert(res.test ==  2)
 ```\n",
         );
-        methods.add_function("connect", |_,(connection_string, func): (String,tealr::mlu::TypedFunction<LuaConnection,Res>)| {
-            let runtime = Arc::new(Builder::new_current_thread().enable_all().build()?);
-            let con = runtime.clone().block_on(async move {
-                sqlx::postgres::PgConnection::connect(&connection_string)
-                    .await
-                    .map(|v|LuaConnection::new(v, runtime))
-                    .map_err(Error::from)
-            })?;
-            let res =func.call(con.clone());
-            con.drop_con()?;
-            res
-        });
+        methods.add_function(
+            "connect",
+            |_,
+             (connection_string, func): (
+                String,
+                tealr::mlu::TypedFunction<LuaConnection, tealr::mlu::mlua::Variadic<Res>>,
+            )| {
+                let runtime = Arc::new(Builder::new_current_thread().enable_all().build()?);
+                let con = runtime.clone().block_on(async move {
+                    sqlx::postgres::PgConnection::connect(&connection_string)
+                        .await
+                        .map(|v| LuaConnection::new(v, runtime))
+                        .map_err(Error::from)
+                })?;
+                let res = func.call(con.clone());
+                con.drop_con()?;
+                res
+            },
+        );
         methods.document("Returns the value used to represent `null` values in json.");
         methods.add_function("nul", |lua, ()| Ok(lua.null()));
-        methods.document("You can index this type with `\"null\"` to get the value back that is used to represent null in json.");
-        methods.add_meta_function(mlua::MetaMethod::Index, |lua, string: String| {
-            if string == "null" {
-                Ok(lua.null())
-            } else {
-                Ok(Nil)
-            }
-        });
         methods.document("Creates the interval type from postgresql.");
         methods.document("## Params:");
         methods.document("- months: The amount of months in this interval. Defaults to 0");
@@ -142,5 +141,9 @@ assert(res.test ==  2)
             },
         );
         methods.generate_help();
+    }
+    fn add_fields<F: tealr::mlu::TealDataFields<Self>>(fields: &mut F) {
+        fields.document("The value used to represent `null` values in json.");
+        fields.add_field_function_get("null", |lua, _| Ok(lua.null()));
     }
 }

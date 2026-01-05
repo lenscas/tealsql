@@ -1,8 +1,12 @@
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::BTreeMap;
+use std::iter::FromIterator;
 use std::{ops::DerefMut, sync::Arc};
 
+use crate::bind_params::bind_params_on;
+use crate::{internal_connection_wrapper::WrappedConnection, iter::Iter, pg_row::LuaRow};
 use either::Either;
 use futures::prelude::stream::StreamExt;
+use mlua::FromLua;
 use parking_lot::{MappedMutexGuard, Mutex};
 use shared::Input;
 use sqlx::PgConnection;
@@ -14,14 +18,52 @@ use tealr::mlu::TealData;
 use tealr::{RecordGenerator, ToTypename};
 use tokio::runtime::Runtime;
 
-pub(crate) type QueryParamCollection = BTreeMap<usize, Input>;
+#[derive(Default)]
+pub(crate) struct QueryParamCollection(BTreeMap<usize, Input>);
+impl ToTypename for QueryParamCollection {
+    fn to_typename() -> tealr::Type {
+        Vec::<Input>::to_typename()
+    }
+    fn to_function_param() -> Vec<tealr::FunctionParam> {
+        Vec::<Input>::to_function_param()
+    }
+}
 
-use crate::bind_params::bind_params_on;
-use crate::{internal_connection_wrapper::WrappedConnection, iter::Iter, pg_row::LuaRow};
+impl FromLua for QueryParamCollection {
+    fn from_lua(value: mlua::Value, lua: &mlua::Lua) -> std::result::Result<Self, mlua::Error> {
+        let map = if value.is_nil() {
+            BTreeMap::new()
+        } else {
+            BTreeMap::from_lua(value, lua)?
+        };
+        Ok(Self(map))
+    }
+}
+
+impl FromIterator<(usize, Input)> for QueryParamCollection {
+    fn from_iter<T: IntoIterator<Item = (usize, Input)>>(iter: T) -> Self {
+        Self(BTreeMap::from_iter(iter))
+    }
+}
+
+impl QueryParamCollection {
+    fn insert(&mut self, key: usize, value: Input) {
+        self.0.insert(key, value);
+    }
+    fn append(&mut self, other: &mut QueryParamCollection) {
+        self.0.append(&mut other.0);
+    }
+    fn extend(&mut self, other: QueryParamCollection) {
+        self.0.extend(other.0);
+    }
+    pub fn remove(&mut self, key: &usize) -> Option<Input> {
+        self.0.remove(key)
+    }
+}
 
 fn get_lock(
-    con: &Arc<Mutex<Option<WrappedConnection>>>,
-) -> Result<MappedMutexGuard<WrappedConnection>, mlua::Error> {
+    con: &'_ Arc<Mutex<Option<WrappedConnection>>>,
+) -> Result<MappedMutexGuard<'_, WrappedConnection>, mlua::Error> {
     let x = con.lock();
     parking_lot::lock_api::MutexGuard::<'_, _, _>::try_map(x, |v| v.as_mut()).map_err(|_| {
         mlua::Error::external(crate::base::Error::Custom(
@@ -58,15 +100,15 @@ pub(crate) struct LuaConnection<'c> {
     connection: Option<Arc<Mutex<Option<WrappedConnection>>>>,
     _x: std::marker::PhantomData<&'c ()>,
 }
-impl<'c> ToTypename for LuaConnection<'c> {
+impl ToTypename for LuaConnection<'_> {
     fn to_typename() -> tealr::Type {
         tealr::Type::new_single("Connection", tealr::KindOfType::External)
     }
     //the name of the type as known to teal.
 }
 
-impl<'c> mlua::UserData for LuaConnection<'c> {
-    fn add_methods<'lua, T: mlua::UserDataMethods<'lua, Self>>(methods: &mut T) {
+impl mlua::UserData for LuaConnection<'_> {
+    fn add_methods<T: mlua::UserDataMethods<Self>>(methods: &mut T) {
         let mut x = tealr::mlu::UserDataWrapper::from_user_data_methods(methods);
         <LuaConnection<'_> as ::tealr::mlu::TealData>::add_methods(&mut x);
     }
@@ -103,7 +145,7 @@ fn sanitize_db_table_name(name: String, should_get_quoted: bool) -> Result<Strin
             let name = "\"".to_string() + &name.replace('.', "\".\"") + "\"";
             Ok(name)
         }
-    } else if name.starts_with(|v: char| (v.is_alphabetic() || v == '_'))
+    } else if name.starts_with(|v: char| v.is_alphabetic() || v == '_')
         && name.chars().all(|v| v.is_alphanumeric() || v == '_')
     {
         Ok(name)
@@ -222,8 +264,14 @@ impl<'c> LuaConnection<'c> {
     }
 }
 
-impl<'c> TealData for LuaConnection<'c> {
-    fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
+impl TealData for LuaConnection<'_> {
+    fn add_methods<T: tealr::mlu::TealDataMethods<Self>>(methods: &mut T) {
+        tealr::mlu::create_named_parameters!(
+            FunctionParams with
+            query: String,
+            params: QueryParamCollection,
+        );
+
         methods.document_type("A single database connection");
 
         methods.document("Fetches 1 or 0 results from the database");
@@ -234,7 +282,7 @@ impl<'c> TealData for LuaConnection<'c> {
         );
         methods.add_method(
             "fetch_optional",
-            |_, this, (query, mut params): (String, QueryParamCollection)| {
+            |_, this, FunctionParams { query, mut params }| {
                 let (query, mut v) = this
                     .runtime
                     .block_on(this.add_params(&query, &mut params))?;
@@ -257,9 +305,8 @@ impl<'c> TealData for LuaConnection<'c> {
         );
         methods.add_method(
             "fetch_all",
-            |_, this, (query, params): (String, Option<QueryParamCollection>)| {
+            |_, this, FunctionParams { query, mut params }| {
                 this.runtime.block_on(async move {
-                    let mut params = params.unwrap_or_default();
                     let (query, mut v) = this.add_params(&query, &mut params).await?;
 
                     let mut stream = query.fetch(v.deref_mut());
@@ -276,6 +323,13 @@ impl<'c> TealData for LuaConnection<'c> {
                 })
             },
         );
+
+        tealr::mlu::create_named_parameters!(
+            FunctionParamsWithCount with
+            query: String,
+            params: QueryParamCollection,
+            chunk_count: Option<usize>,
+        );
         methods.document("Runs a thread in the background that fetches all results. Allowing you to consume the results in batches, or do other things while the query is being executed");
         methods.document("# Params:");
         methods.document("- query: The query string that needs to be executed");
@@ -285,13 +339,19 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.document("- chunk_count: How big the batches are that will be returned from the background thread to the main one. Higher batch count may improve performance");
         methods.add_method(
             "fetch_all_async",
-            |_, this, (query, mut params, chunk_count): (String, QueryParamCollection, Option<usize>)|  {
-                let chunk_count = chunk_count.unwrap_or(1).max(1);
+            |_,
+             this,
+             FunctionParamsWithCount {
+                 query,
+                 mut params,
+                 chunk_count,
+             }| {
+                let chunk_count = chunk_count.unwrap_or(100).max(1);
                 let connection = this.unwrap_connection_option()?.clone();
                 let runtime = this.runtime.clone();
-                let iter = Iter::from_func(move |mut sender, is_done| {
+                let iter = Iter::<tealr::mlu::mlua::Value>::from_func(move |sender| {
                     move || {
-                        runtime.block_on (async {
+                        runtime.block_on(async {
                             match add_params(&connection, &query, &mut params).await {
                                 Ok((query, mut con)) => {
                                     let mut stream = query
@@ -301,30 +361,25 @@ impl<'c> TealData for LuaConnection<'c> {
                                             Err(x) => crate::iter::AsyncMessage::Error(x),
                                         })
                                         .chunks(chunk_count)
-                                        .map(|v|{
-                                            let x = sender.input_buffer();
-                                            x.extend(v);
-                                            sender.publish();
-                                        });
-                                    while let Some(()) = stream.next().await {
-                                        if is_done.load(std::sync::atomic::Ordering::Acquire) {
-                                            break
+                                        .map(|v| sender.send(v));
+                                    while let Some(a) = stream.next().await {
+                                        match a {
+                                            Ok(()) => (),
+                                            Err(_) => break,
                                         }
                                     }
-                                    is_done.store(true,std::sync::atomic::Ordering::Release );
                                 }
                                 Err(x) => {
                                     if let mlua::Error::ExternalError(x) = x {
-                                        let mut y = VecDeque::new();
-                                        y.push_back(crate::iter::AsyncMessage::DynError(x));
-                                        let x = sender.input_buffer();
-                                            x.append(&mut y);
-                                            sender.publish();
-                                        is_done.store(true, std::sync::atomic::Ordering::SeqCst)
+                                        let y = vec![crate::iter::AsyncMessage::DynError(x)];
+                                        //only way that this can fail if is the receiver is already gone.
+                                        //in which case, we don't really care about what happens
+                                        let _ = sender.send(y);
                                     }
                                 }
                             }
                         });
+                        drop(sender);
                     }
                 });
                 Ok(iter)
@@ -336,12 +391,9 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.document(
             "- params: An array (table) containing the parameters that this function needs",
         );
-        methods.add_method(
-            "execute",
-            |_, this, (query, params): (String, QueryParamCollection)| {
-                this.runtime.block_on(this.execute(query, params))
-            },
-        );
+        methods.add_method("execute", |_, this, FunctionParams { query, params }| {
+            this.runtime.block_on(this.execute(query, params))
+        });
         methods.document("## Params:");
         methods.document("- query: The query string that needs to be executed");
         methods.document(
@@ -349,7 +401,7 @@ impl<'c> TealData for LuaConnection<'c> {
         );
         methods.add_method(
             "fetch_one",
-            |_, this, (query, mut params): (String, QueryParamCollection)| {
+            |_, this, FunctionParams { query, mut params }| {
                 let (query, mut v) = this
                     .runtime
                     .block_on(this.add_params(&query, &mut params))?;
@@ -373,9 +425,9 @@ impl<'c> TealData for LuaConnection<'c> {
         methods.document("## Examples:");
         methods.document("### Committing");
         methods.document("```teal_lua
-tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
-    local success, res = con:begin(function(con:tealsql.Connection):(boolean,integer)
-        con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");
+tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):nil
+    local success, res:boolean, integer = con:begin(function(con:tealsql.Connection):(boolean,integer)
+        con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\", nil);
         return true, 1
     end)
     assert(success)
@@ -385,9 +437,9 @@ end)
 ```");
         methods.document("### Manual Rollback");
         methods.document("```teal_lua
-tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
-    local success, res = con:begin(function(con:tealsql.Connection):(boolean,integer)
-        con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");
+tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):nil
+    local success, res: boolean, integer = con:begin(function(con:tealsql.Connection):(boolean,integer)
+        con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\", nil);
         return false, 1
     end)
     assert(not success)
@@ -396,9 +448,9 @@ end)
 ```");
         methods.document("### Rollback on error");
         methods.document("```teal_lua
-tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):{string:integer}
-    local success, res = con:begin(function(con:tealsql.Connection):(boolean,integer)
-        con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\");
+tealsql.connect(\"postgres://userName:password@host/database\",function(con:tealsql.Connection):nil
+    local success, res: boolean, integer = con:begin(function(con:tealsql.Connection):(boolean,integer)
+        con:execute(\"INSERT INTO some_table (some_column) VALUES (1)\", nil);
         error(\"This will also cause a rollback\")
     end)
     --we will never reach this part, as the error gets rethrowed
@@ -410,7 +462,12 @@ end)
         ");
         methods.add_method_mut(
             "begin",
-            |_, this, func: tealr::mlu::TypedFunction<LuaConnection, (Option<bool>, Option<crate::Res>)>| {
+            |_,
+             this,
+             func: tealr::mlu::TypedFunction<
+                LuaConnection,
+                (Option<bool>, tealr::mlu::mlua::Variadic<Option<crate::Res>>),
+            >| {
                 let connection = this.connection.take().ok_or_else(|| {
                     mlua::Error::external(crate::base::Error::Custom(
                         "Tried to use a connection that is used for a transaction.".into(),
@@ -432,12 +489,11 @@ end)
                     return Err(mlua::Error::external(crate::base::Error::Sqlx(x)));
                 }
                 drop(guard);
-                let lua_con = LuaConnection::from_wrapped(connection.clone(),this.runtime.clone());
-                let res: Result<(bool, Option<crate::Res>), _> =
-                    func.call(lua_con.clone()).map(|v| match v {
-                        (None, x) => (true, x),
-                        (Some(x), y) => (x, y),
-                    });
+                let lua_con = LuaConnection::from_wrapped(connection.clone(), this.runtime.clone());
+                let res = func.call(lua_con.clone()).map(|v| match v {
+                    (None, x) => (true, x),
+                    (Some(x), y) => (x, y),
+                });
                 let mut guard = connection.lock();
                 let con = match guard.as_mut() {
                     Some(con) => con,
@@ -466,6 +522,12 @@ end)
                 }
             },
         );
+        tealr::mlu::create_named_parameters!(
+            InsertParams with
+            name: String,
+            values: BTreeMap<String, Input>,
+            needs_to_get_quoted: Option<bool>,
+        );
         methods.document("A shorthand to run a basic insert command.");
         methods.document("# WARNING!:");
         methods.document("the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these values.");
@@ -478,11 +540,11 @@ end)
             "insert",
             |_,
              this,
-             (name, values, needs_to_get_quoted): (
-                String,
-                BTreeMap<String, Input>,
-                Option<bool>,
-            )| {
+             InsertParams {
+                 name,
+                 values,
+                 needs_to_get_quoted,
+             }| {
                 let name = sanitize_db_table_name(name, needs_to_get_quoted.unwrap_or(false))?;
                 let (keys, markers, values) = Self::extract_lua_to_table_fields(values, 0)?;
                 let sql = format!(
@@ -498,6 +560,13 @@ end)
                 this.runtime.block_on(this.execute(sql, values))
             },
         );
+        tealr::mlu::create_named_parameters!(
+            BulkInsertParams with
+            name: String,
+            columns: Vec<String>,
+            values: Vec<Vec<Input>>,
+            needs_to_get_quoted: Option<bool>,
+        );
         methods.document("A shorthand to run a basic bulk insert command.");
         methods.document("# WARNING!:");
         methods.document("the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these values.");
@@ -511,12 +580,12 @@ end)
             "bulk_insert",
             |_,
              this,
-             (name, columns, values, needs_to_get_quoted): (
-                String,
-                Vec<String>,
-                Vec<Vec<Input>>,
-                Option<bool>,
-            )| {
+             BulkInsertParams {
+                 name,
+                 columns,
+                 values,
+                 needs_to_get_quoted,
+             }| {
                 let needs_to_get_quoted = needs_to_get_quoted.unwrap_or(false);
                 let name = sanitize_db_table_name(name, needs_to_get_quoted)?;
                 let column_names = columns
@@ -524,7 +593,7 @@ end)
                     .map(|v| sanitize_db_table_name(v, needs_to_get_quoted))
                     .collect::<Result<Vec<_>, _>>()?;
                 let mut at = 0;
-                let mut new_values = BTreeMap::new();
+                let mut new_values = QueryParamCollection::default();
                 let rows = values
                     .into_iter()
                     .map(|row| {
@@ -555,6 +624,14 @@ end)
                 this.runtime.block_on(this.execute(sql, new_values))
             },
         );
+
+        tealr::mlu::create_named_parameters!(
+            UpdateParams with
+            name: String,
+            old_values: BTreeMap<String, Input>,
+            new_values: BTreeMap<String, Input>,
+            needs_to_get_quoted: Option<bool>,
+        );
         methods.document("A shorthand to run a basic update command.");
         methods.document("# WARNING!:");
         methods.document("the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these.");
@@ -568,12 +645,12 @@ end)
             "update",
             |_,
              this,
-             (name, old_values, new_values, needs_to_get_quoted): (
-                String,
-                BTreeMap<String, Input>,
-                BTreeMap<String, Input>,
-                Option<bool>,
-            )| {
+             UpdateParams {
+                 name,
+                 old_values,
+                 new_values,
+                 needs_to_get_quoted,
+             }| {
                 let name = sanitize_db_table_name(name, needs_to_get_quoted.unwrap_or(false))?;
 
                 let (old_keys, old_markers, mut old_values) =
@@ -652,10 +729,15 @@ end)
             let sql = format!(
                 "INSERT INTO \"{name}\" ({joined_keys}) VALUES ({markers}) ON CONFLICT ON CONSTRAINT \"{index}\" DO UPDATE SET {to_update};",
             );
-            println!("{sql}");
             values.extend(a);
             this.runtime.block_on(this.execute(sql, values))
         });
+        tealr::mlu::create_named_parameters!(
+            DeleteParams with
+            name: String,
+            check_on: BTreeMap<String, Input>,
+            needs_to_get_quoted: Option<bool>,
+        );
         methods.document("A shorthand to run a basic delete command.");
         methods.document("WARNING!:");
         methods.document("the table and column names are NOT escaped. SQL injection IS possible if user input is allowed for these values.");
@@ -668,11 +750,11 @@ end)
             "delete",
             |_,
              this,
-             (name, check_on, needs_to_get_quoted): (
-                String,
-                BTreeMap<String, Input>,
-                Option<bool>,
-            )| {
+             DeleteParams {
+                 name,
+                 check_on,
+                 needs_to_get_quoted,
+             }| {
                 let name = sanitize_db_table_name(name, needs_to_get_quoted.unwrap_or(false))?;
                 let (keys, markers, values) = Self::extract_lua_to_table_fields(check_on, 0)?;
                 let where_parts = keys

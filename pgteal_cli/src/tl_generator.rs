@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context;
 use inflector::Inflector;
 use sqlx::{postgres::PgTypeInfo, Column, Executor, Pool, Postgres, TypeInfo};
-use tealr::{type_parts_to_str, TypeName};
+use tealr::{type_to_string, ToTypename};
 
 use crate::sql_parser::ParsedSql;
 
@@ -88,50 +88,54 @@ pub(crate) async fn query_to_teal(
     let (input_type_defs, input_type) =
         create_struct_from_db(iter, &parsed_query, KindOfType::Input)?;
 
-    let fetch_all = parsed_query
-        .create_fetch_all
-        .then(|| {
+    let fetch_all = if parsed_query.create_fetch_all {
+        {
             make_function(
                 &parsed_query,
                 &input_type.name,
                 &return_type.name,
                 PossibleFunctions::FetchAll,
             )
-        })
-        .unwrap_or_default();
-    let execute = parsed_query
-        .create_execute
-        .then(|| {
+        }
+    } else {
+        Default::default()
+    };
+    let execute = if parsed_query.create_execute {
+        {
             make_function(
                 &parsed_query,
                 &input_type.name,
                 &return_type.name,
                 PossibleFunctions::Execute,
             )
-        })
-        .unwrap_or_default();
-    let fetch_one = parsed_query
-        .create_fetch_one
-        .then(|| {
+        }
+    } else {
+        Default::default()
+    };
+    let fetch_one = if parsed_query.create_fetch_one {
+        {
             make_function(
                 &parsed_query,
                 &input_type.name,
                 &return_type.name,
                 PossibleFunctions::FetchOne,
             )
-        })
-        .unwrap_or_default();
-    let fetch_optional = parsed_query
-        .create_fetch_optional
-        .then(|| {
+        }
+    } else {
+        Default::default()
+    };
+    let fetch_optional = if parsed_query.create_fetch_optional {
+        {
             make_function(
                 &parsed_query,
                 &input_type.name,
                 &return_type.name,
                 PossibleFunctions::FetchOptional,
             )
-        })
-        .unwrap_or_default();
+        }
+    } else {
+        Default::default()
+    };
     Ok(TealStructResults {
         parts: TealParts {
             container_name: parsed_query.name,
@@ -195,8 +199,7 @@ fn make_function(
         (false, false) => format!("{{{}}}", return_type),
     };
     let function_header = format!(
-        "        {} = function (params: {}, connection: libpgteal.Connection): {}",
-        function_type, input_type, return_name
+        "        {function_type} = function (params: {input_type}, connection: libpgteal.Connection): {return_name}",
     );
     let params: String = query
         .params
@@ -208,24 +211,21 @@ fn make_function(
         "local param_order:{{string}} = {{\n{}\n            }}",
         params
     );
+    let types = type_to_string(&shared::Input::to_typename(), false);
+    let sql = &query.sql;
     format!(
-        "{}
-            {}
+        "{function_header}
+            {params}
             local query_params = {{}}
             for k,v in ipairs(param_order) do
-                query_params[k] = (params as {{string:{}}})[v]
+                query_params[k] = (params as {{string:{types}}})[v]
             end
-            return connection:{}(
-[[{}\n]],
+            return connection:{function_type}(
+[[{sql}\n]],
                 query_params
-            ) as {}
-        end",
-        function_header,
-        params,
-        type_parts_to_str(shared::Input::get_type_parts()),
-        function_type,
-        query.sql,
-        return_name
+            ) as {return_name}
+            
+        end"
     )
 }
 
@@ -395,14 +395,14 @@ fn get_path(path_template: &str, file_path: &Path) -> Result<OsString, anyhow::E
                     end_path.push(&path);
                 } else if x == "name" {
                     end_path.push(
-                        &file_path
+                        file_path
                             .file_stem()
                             .map(ToOwned::to_owned)
                             .unwrap_or_default(),
                     )
                 } else if x == "ext" {
                     end_path.push(
-                        &file_path
+                        file_path
                             .extension()
                             .map(ToOwned::to_owned)
                             .unwrap_or_default(),

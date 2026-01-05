@@ -13,7 +13,7 @@ pgteal.connect("postgres://tealsql:tealsql@localhost/tealsql",function(con:pgtea
             local endTimeDataCreation = os.clock()
             print("data creation time:", endTimeDataCreation - startTimeDataCreation)
             local startTime = os.clock()
-            con:bulk_insert("t_random",{"text"}, toInsert)
+            con:bulk_insert("t_random",{"text"}, toInsert, nil)
             local endTime = os.clock()
             print("query time:", endTime - startTime)
             print("processed", i, "items")
@@ -21,7 +21,44 @@ pgteal.connect("postgres://tealsql:tealsql@localhost/tealsql",function(con:pgtea
         end
     end
     if #toInsert > 0 then
-        con:bulk_insert("t_random",{"text"}, toInsert)
+        con:bulk_insert("t_random",{"text"}, toInsert, nil)
     end
+    con:execute("TRUNCATE TABLE public.everything RESTART IDENTITY RESTRICT;",{})
+    con:insert(
+        "everything",
+        {
+            varchar1= "someString",
+            bigint1 = 2,
+            character1 = "a",
+            float41 = 2.1,
+            money1=2,
+            json1 = {
+                a="b",
+                c="d"
+            },
+            int4array = {1,2,3,4},
+            interval1 = pgteal.interval(1,2,3) as number,
+            uuid1 = "48361ec1-1094-47e3-b0dc-288fe759a17b"
+        },
+        nil
+    )
+    con:insert(
+        "everything",
+        {
+            varchar1= "nice",
+            bigint1 = 4,
+            character1 = "a",
+            float41 = 5.1,
+            money1=123191,
+            json1 = {
+                a={"b","c",3},
+                c="d"
+            },
+            int4array = {1,2,3,4},
+            interval1 = pgteal.interval(0,0,12321312) as number,
+            uuid1 = "6113f0e7-2029-428f-8852-f07a82405d83"
+        },
+        nil
+    )
 
 end)

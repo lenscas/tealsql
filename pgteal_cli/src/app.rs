@@ -87,7 +87,7 @@ tealPattern:
 \tExample: `{dir}/{name}_{ext}.tl` will place the teal files next to the sql files used to generate them.
         ")
         .get_matches();
-    if matches.args.get("print_default_config").is_some() {
+    if matches.args.contains_key("print_default_config") {
         return Ok(Action::PrintConfig(ConfigFile {
             teal_pattern: Some("{dir}/{name}_{ext}.tl".to_string()),
             sql_pattern: Some("./src/**/*.sql".to_string()),
@@ -103,7 +103,7 @@ tealPattern:
     let config: ConfigFile = matches
         .args
         .get("config_path")
-        .and_then(|v| v.vals.get(0))
+        .and_then(|v| v.vals.first())
         .and_then(|v| read_to_string(v).ok().map(|v| toml::from_str(&v)))
         .unwrap_or_else(|| Ok(Default::default()))?;
 
