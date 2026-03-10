@@ -15,6 +15,7 @@ fi
 
 if [[ $CI == true ]]; then
     LUA_LIB="${PWD}/lua/lib/"
+    PKG_CONFIG_PATH="${PWD}/lua/lib/"
 fi
 echo "Lua paths"
 echo $LUA_LIB
