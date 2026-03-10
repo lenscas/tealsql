@@ -13,12 +13,11 @@ else
     FEATURE="lua51"
 fi
 
-if [[$CI == true]]; then
-    LUA_LIB="./lua/lib/"
+if [[ $CI == true ]]; then
+    LUA_LIB="${pwd}/lua/lib/"
 fi
 echo "Lua paths"
 echo $LUA_LIB
-echo $LUA_LIB_NAME
 which lua
 
 echo "Using lua version: " $FEATURE
