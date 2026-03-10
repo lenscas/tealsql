@@ -14,7 +14,7 @@ else
 fi
 
 if [[ $CI == true ]]; then
-    LUA_LIB="${pwd}/lua/lib/"
+    LUA_LIB="${PWD}/lua/lib/"
 fi
 echo "Lua paths"
 echo $LUA_LIB
