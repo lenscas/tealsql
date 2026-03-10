@@ -3,47 +3,47 @@ on:
   pull_request:
     paths:
       - "**/*.rs"
-      - 'Cargo.toml'
-      - '**/Cargo.lock'
-      - '**/Cargo.toml'
-      - '.github/workflows/ci.yml'
+      - "Cargo.toml"
+      - "**/Cargo.lock"
+      - "**/Cargo.toml"
+      - ".github/workflows/ci.yml"
 jobs:
   formatting:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        tests :
+        tests:
           - "cargo fmt --all -- --check"
     steps:
-    - uses: actions/checkout@v2
-    - uses: hecrj/setup-rust-action@v1
-      with:
-        rust-version: stable
-        components: rustfmt
-    - name: Formatting check
-      run: ${{matrix.tests}}
+      - uses: actions/checkout@v2
+      - uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: stable
+          components: rustfmt
+      - name: Formatting check
+        run: ${{matrix.tests}}
   clippy:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        tests :
+        tests:
           - "cargo clippy --features lua54"
           - "cargo clippy --features lua53"
           - "cargo clippy --features lua52"
           - "cargo clippy --features lua51"
     steps:
-    - uses: hecrj/setup-rust-action@v1.3.4 
-      with:
-        rust-version: stable
-        components: clippy
-    - uses: actions/checkout@master
-    - name: Clippy
-      run: ${{matrix.tests}}
+      - uses: hecrj/setup-rust-action@v1.3.4
+        with:
+          rust-version: stable
+          components: clippy
+      - uses: actions/checkout@master
+      - name: Clippy
+        run: ${{matrix.tests}}
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        luaVersion :
+        luaVersion:
           - "5.4"
           - "5.3"
           - "5.2"
@@ -91,7 +91,9 @@ jobs:
       - uses: leafo/gh-actions-luarocks@v4.0.0
       - name: install teal
         run: luarocks install tl
+      - name: install cyan
+        run: luarocks install cyan
       - name: run setup_cli_test
         run: ./test_cli/setup_cli_test.sh
       - name: run cli tests
-        run: cd ./test_cli/cli_test && tl build && lua test.lua
+        run: cd ./test_cli/cli_test && cyan build && lua test.lua
