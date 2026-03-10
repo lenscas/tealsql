@@ -1,3 +1,4 @@
+use mlua::IntoLuaMulti;
 use std::{
     collections::VecDeque,
     sync::{
@@ -8,7 +9,7 @@ use std::{
 };
 use tealr::{
     mlu::mlua::{FromLua, IntoLua, UserData, UserDataRef, UserDataRefMut},
-    RecordGenerator, ToTypename,
+    RecordGenerator, TealMultiValue, ToTypename,
 };
 use tealr::{
     mlu::{TealData, UserDataWrapper},
@@ -110,7 +111,9 @@ fn get_through_locs(
     }
 }
 
-impl<X: ToTypename + 'static + mlua::FromLua> Iter<X> {
+tealr::mlu::create_generic!(pub(crate) Out);
+
+impl<X: ToTypename + 'static + mlua::FromLua + IntoLuaMulti + TealMultiValue> Iter<X> {
     pub(crate) fn from_func<
         ThreadFunc: FnOnce() + Send + 'static,
         FuncSpawner: FnOnce(Sender<Vec<AsyncMessage>>) -> ThreadFunc,
@@ -168,15 +171,16 @@ impl<X: ToTypename + 'static + mlua::FromLua> Iter<X> {
         &mut self,
         force: bool,
         lua: &tealr::mlu::mlua::Lua,
-        func: tealr::mlu::TypedFunction<tealr::mlu::mlua::Value, X>,
-    ) -> Result<Vec<X>, tealr::mlu::mlua::Error> {
+        func: tealr::mlu::TypedFunction<X, Out>,
+    ) -> Result<Vec<Out>, tealr::mlu::mlua::Error> {
         let mut res = Vec::new();
         {
             let mut lock_channel = Self::get_lock(&mut self.channel)?;
             loop {
                 let (item, is_disconnected) = get_through_locs(&mut lock_channel, force)?;
                 if let Some(x) = item {
-                    let x = crate::pg_row::LuaRow::from(x).into_lua(lua)?;
+                    let x = X::from_lua(crate::pg_row::LuaRow::from(x).into_lua(lua)?, lua)?;
+
                     res.push(func.call(x)?);
                 }
 
@@ -246,9 +250,7 @@ impl<X: ToTypename + 'static + mlua::FromLua + mlua::IntoLua> TealData for Iter<
         });
         methods.add_method_mut(
             "loop_all",
-            |lua, this, func: tealr::mlu::TypedFunction<tealr::mlu::mlua::Value, X>| {
-                this.run_all(true, lua, func)
-            },
+            |lua, this, func: tealr::mlu::TypedFunction<X, Out>| this.run_all(true, lua, func),
         );
         methods.generate_help();
     }
