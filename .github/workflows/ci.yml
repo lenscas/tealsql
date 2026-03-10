@@ -16,7 +16,7 @@ jobs:
           - "cargo fmt --all -- --check"
     steps:
       - uses: actions/checkout@v2
-      - uses: hecrj/setup-rust-action@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
           rust-version: stable
           components: rustfmt
@@ -32,7 +32,7 @@ jobs:
           - "cargo clippy --features lua52"
           - "cargo clippy --features lua51"
     steps:
-      - uses: hecrj/setup-rust-action@v1.3.4
+      - uses: dtolnay/rust-toolchain@stable
         with:
           rust-version: stable
           components: clippy
@@ -75,6 +75,9 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          rust-version: stable
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update
