@@ -13,6 +13,11 @@ else
     FEATURE="lua51"
 fi
 
+echo "Lua paths"
+echo $LUA_LIB
+echo $LUA_LIB_NAME
+echo which lua
+
 echo "Using lua version: " $FEATURE
 
 cd pgteal_cli
