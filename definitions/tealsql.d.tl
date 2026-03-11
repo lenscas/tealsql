@@ -2,7 +2,7 @@
 
 local record tealsql
     
-    --Tealsql is a sql library made to be easy and safe to use. Its RAII centric API prevents mistakes like forgetting to close connections.
+--Tealsql is a sql library made to be easy and safe to use. Its RAII centric API prevents mistakes like forgetting to close connections.
         --The library also makes prepared statements easy to use as it does the binding of parameters for you.
         --
         --There are also several helper functions to do basic tasks like deleting, updating or inserting values. These allow you to quickly get something going without the need to write SQL for these basic operation
@@ -15,7 +15,11 @@ local record tealsql
         --
         --
 
-        --Connect to the server and create a connection pool
+    --The value used to represent `null` values in json.
+        null:any
+
+
+    --Connect to the server and create a connection pool
         --
         --## Params:
         --
@@ -25,26 +29,26 @@ local record tealsql
         --
         --```teal_lua
         --local pool = tealsql.connect_pool("postgres://userName:password@host/database")
-        --local res = pool:get_connection(function(con:tealsql.Connection):{string:integer}
+        --local res:{string:integer} = pool:get_connection(function(con:tealsql.Connection):{string:integer}
         --    return con:fetch_one("SELECT $1 as test",{2}) as {string:integer}
         --end)
         --assert(res.test ==  2)
         --```
         --
+        connect_pool:function(string) : Pool
 
-        connect_pool : function(string):(Pool)
 
-        --Returns a json string representing the definitions of this library
+    --Returns a json string representing the definitions of this library
         --
         --This can be used to generate online documentation
         --
         --## Params:
         --
         --- pretty: If the json needs to be pretty printed or not
+        gen_json:function(boolean) : string
 
-        gen_json : function(boolean):(string)
 
-        --Connect to the server and create a single connection
+    --Connect to the server and create a single connection
         --
         --## Params:
         --
@@ -59,20 +63,20 @@ local record tealsql
         --## Example:
         --
         --```teal_lua
-        --local res = tealsql.connect("postgres://userName:password@host/database",function(con:tealsql.Connection):{string:integer}
+        --local res: {string:integer} = tealsql.connect("postgres://userName:password@host/database",function(con:tealsql.Connection):{string:integer}
         --    return con:fetch_one("SELECT $1 as test",{2}) as {string:integer}
         --end)
         --assert(res.test ==  2)
         --```
         --
+        connect:function<Res>(string , function(Connection) : (Res...)) : (Res...)
 
-        connect : function<Res>(string , function(Connection):(Res)):(Res)
 
-        --Returns the value used to represent `null` values in json.
+    --Returns the value used to represent `null` values in json.
+        nul:function() : any
 
-        nul : function():(any)
 
-        --Creates the interval type from postgresql.
+    --Creates the interval type from postgresql.
         --
         --## Params:
         --
@@ -81,21 +85,16 @@ local record tealsql
         --- days: The amount of days in this interval. Defaults to 0
         --
         --- microseconds: The amount of microseconds in this interval. Defaults to 0
+        interval:function(integer , integer , integer) : Interval
 
-        interval : function(integer , integer , integer):(Interval)
+        help:function(string) : string
 
-        help : function(string):(string)
 
-        --You can index this type with `"null"` to get the value back that is used to represent null in json.
 
-        __index : function(string):(any)
-
+    interface  Pool
+        is userdata
     
-    record Pool
-
-        userdata
-    
-    --A connection pool containing at most 10 connections.
+--A connection pool containing at most 10 connections.
         --
         --Opening a database connection for each and every operation to the database can quickly become expensive.
         --
@@ -103,7 +102,7 @@ local record tealsql
         --
         --
 
-        --Gets a connection from the pool
+    --Gets a connection from the pool
         --
         --Parameters:
         --
@@ -112,43 +111,42 @@ local record tealsql
         --This function receives the connection object, which will be cleaned up after the function has been executed.
         --
         --A value returned from this function will also be returned by the connect function
+        get_connection:function<Res>(self : Pool , function(Connection) : (Res...)) : (Res...)
 
-        get_connection : function<Res>(self:Pool , function(Connection):(Res)):(Res)
+        help:function(string) : string
 
-        help : function(string):(string)
 
     end
     
-    
-    record Connection
 
+    interface  Connection
         
     
-    --A single database connection
+--A single database connection
         --
         --
 
-        --Fetches 1 or 0 results from the database
+    --Fetches 1 or 0 results from the database
         --
         --## Params:
         --
         --- query: The query string that needs to be executed
         --
         --- params: An array (table) containing the parameters that this function needs
+        fetch_optional:function(self : Connection , query : string , params : { any }) : ({ string : any } )
 
-        fetch_optional : function(self:Connection , string , {integer : (boolean | integer | number | {any : any} | string)}):({string : (boolean | integer | number | {any : any} | string)})
 
-        --Fetches all results into a table
+    --Fetches all results into a table
         --
         --## Params:
         --
         --- query: The query string that needs to be executed
         --
         --- params: An array (table) containing the parameters that this function needs
+        fetch_all:function(self : Connection , query : string , params : { any }) : ({ { string : any }  })
 
-        fetch_all : function(self:Connection , string , {integer : (boolean | integer | number | {any : any} | string)}):({{string : (boolean | integer | number | {any : any} | string)}})
 
-        --Runs a thread in the background that fetches all results. Allowing you to consume the results in batches, or do other things while the query is being executed
+    --Runs a thread in the background that fetches all results. Allowing you to consume the results in batches, or do other things while the query is being executed
         --
         --# Params:
         --
@@ -157,28 +155,28 @@ local record tealsql
         --- params: An array (table) containing the parameters that this function needs
         --
         --- chunk_count: How big the batches are that will be returned from the background thread to the main one. Higher batch count may improve performance
+        fetch_all_async:function(self : Connection , query : string , params : { any } , chunk_count : integer) : Stream<any>
 
-        fetch_all_async : function(self:Connection , string , {integer : (boolean | integer | number | {any : any} | string)} , integer):(Stream)
 
-        --Fetches exactly 1 value from the database.
+    --Fetches exactly 1 value from the database.
         --
         --## Params:
         --
         --- query: The query string that needs to be executed
         --
         --- params: An array (table) containing the parameters that this function needs
+        execute:function(self : Connection , query : string , params : { any }) : integer
 
-        execute : function(self:Connection , string , {integer : (boolean | integer | number | {any : any} | string)}):(integer)
 
-        --## Params:
+    --## Params:
         --
         --- query: The query string that needs to be executed
         --
         --- params: An array (table) containing the parameters that this function needs
+        fetch_one:function(self : Connection , query : string , params : { any }) : ({ string : any } )
 
-        fetch_one : function(self:Connection , string , {integer : (boolean | integer | number | {any : any} | string)}):({string : (boolean | integer | number | {any : any} | string)})
 
-        --A shorthand to run a basic insert command.
+    --A shorthand to run a basic insert command.
         --
         --# WARNING!:
         --
@@ -193,10 +191,10 @@ local record tealsql
         --- values: A table where the keys are the column names and the values are the values that will be inserted
         --
         --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
+        insert:function(self : Connection , name : string , values : { string : any }  , needs_to_get_quoted : boolean) : integer
 
-        insert : function(self:Connection , string , {string : (boolean | integer | number | {any : any} | string)} , boolean):(integer)
 
-        --A shorthand to run a basic bulk insert command.
+    --A shorthand to run a basic bulk insert command.
         --
         --# WARNING!:
         --
@@ -213,10 +211,10 @@ local record tealsql
         --- values: an table containing a table for every row. Columns are entirely decided by order
         --
         --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
+        bulk_insert:function(self : Connection , name : string , columns : { string } , values : { { any } } , needs_to_get_quoted : boolean) : integer
 
-        bulk_insert : function(self:Connection , string , {string} , {{(boolean | integer | number | {any : any} | string)}} , boolean):(integer)
 
-        --A shorthand to run a basic update command.
+    --A shorthand to run a basic update command.
         --
         --# WARNING!:
         --
@@ -233,10 +231,10 @@ local record tealsql
         --- new_values: A table where the keys are the column names and the values are the values that this column will be updated to
         --
         --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
+        update:function(self : Connection , name : string , old_values : { string : any }  , new_values : { string : any }  , needs_to_get_quoted : boolean) : integer
 
-        update : function(self:Connection , string , {string : (boolean | integer | number | {any : any} | string)} , {string : (boolean | integer | number | {any : any} | string)} , boolean):(integer)
 
-        --A simple shorthand to do an insert and specify how the row needs to be updated instead if there is a conflict on the given index
+    --A simple shorthand to do an insert and specify how the row needs to be updated instead if there is a conflict on the given index
         --
         --WARNING!:
         --
@@ -253,10 +251,10 @@ local record tealsql
         --- new_values: A table where the keys are the column names and the values are the values that this column will be updated to
         --
         --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
+        upsert:function(self : Connection , name : string , values : { string : any }  , index : string , to_replace : { string : any }  , needs_to_get_quoted : boolean) : integer
 
-        upsert : function(self:Connection , name:string , values:{string : (boolean | integer | number | {any : any} | string)} , index:string , to_replace:{string : (boolean | integer | number | {any : any} | string)} , needs_to_get_quoted:boolean):(integer)
 
-        --A shorthand to run a basic delete command.
+    --A shorthand to run a basic delete command.
         --
         --WARNING!:
         --
@@ -271,10 +269,10 @@ local record tealsql
         --- old_values: A table used to construct the `where` part of the query. The keys are the column names and the values are the values that will be matched against
         --
         --- needs_to_get_quoted: If the table name should get quotes around it. Defaults to false, set to true if the name contains .'s
+        delete:function(self : Connection , name : string , check_on : { string : any }  , needs_to_get_quoted : boolean) : integer
 
-        delete : function(self:Connection , string , {string : (boolean | integer | number | {any : any} | string)} , boolean):(integer)
 
-        --Starts a new transaction.
+    --Starts a new transaction.
         --
         --## Params:
         --
@@ -295,9 +293,9 @@ local record tealsql
         --### Committing
         --
         --```teal_lua
-        --tealsql.connect("postgres://userName:password@host/database",function(con:tealsql.Connection):{string:integer}
-        --    local success, res = con:begin(function(con:tealsql.Connection):(boolean,integer)
-        --        con:execute("INSERT INTO some_table (some_column) VALUES (1)");
+        --tealsql.connect("postgres://userName:password@host/database",function(con:tealsql.Connection):nil
+        --    local success, res:boolean, integer = con:begin(function(con:tealsql.Connection):(boolean,integer)
+        --        con:execute("INSERT INTO some_table (some_column) VALUES (1)", nil);
         --        return true, 1
         --    end)
         --    assert(success)
@@ -309,9 +307,9 @@ local record tealsql
         --### Manual Rollback
         --
         --```teal_lua
-        --tealsql.connect("postgres://userName:password@host/database",function(con:tealsql.Connection):{string:integer}
-        --    local success, res = con:begin(function(con:tealsql.Connection):(boolean,integer)
-        --        con:execute("INSERT INTO some_table (some_column) VALUES (1)");
+        --tealsql.connect("postgres://userName:password@host/database",function(con:tealsql.Connection):nil
+        --    local success, res: boolean, integer = con:begin(function(con:tealsql.Connection):(boolean,integer)
+        --        con:execute("INSERT INTO some_table (some_column) VALUES (1)", nil);
         --        return false, 1
         --    end)
         --    assert(not success)
@@ -322,9 +320,9 @@ local record tealsql
         --### Rollback on error
         --
         --```teal_lua
-        --tealsql.connect("postgres://userName:password@host/database",function(con:tealsql.Connection):{string:integer}
-        --    local success, res = con:begin(function(con:tealsql.Connection):(boolean,integer)
-        --        con:execute("INSERT INTO some_table (some_column) VALUES (1)");
+        --tealsql.connect("postgres://userName:password@host/database",function(con:tealsql.Connection):nil
+        --    local success, res: boolean, integer = con:begin(function(con:tealsql.Connection):(boolean,integer)
+        --        con:execute("INSERT INTO some_table (some_column) VALUES (1)", nil);
         --        error("This will also cause a rollback")
         --    end)
         --    --we will never reach this part, as the error gets rethrowed
@@ -334,56 +332,54 @@ local record tealsql
         --
         --```
         --        
+        begin:function<Res>(self : Connection , function(Connection): ((boolean ) , Res...)): ((boolean ) , Res...)
 
-        begin : function<Res>(self:Connection , function(Connection):(boolean , Res)):(boolean , Res)
+        help:function(string) : string
 
-        help : function(string):(string)
 
     end
     
-    
-    record Stream
 
-        userdata
+    interface  Stream<Res>
+        is userdata
     
-    --Returned from connection:fetch_all_async(). It allows you to do other things while the query is running in a background thread.
+--Returned from connection:fetch_all_async(). It allows you to do other things while the query is running in a background thread.
         --
         --
 
-        --returns the next item if it is available or nill if not.
+    --Constructs a blocking iterator that will loop over all the items.
+        iter:function(self : Stream<Res>): ((function(Stream<Res>) : Res ) , (Stream<Res>))
+
+
+    --returns the next item if it is available or nill if not.
         --
         --Does NOT block the main thread.
+        try_next:function(self : Stream<Res>): ((boolean ) , (Res))
 
-        try_next : function(self:Stream):(boolean , any)
 
-        --Waits until the next item is available and then returns it.
+    --Waits until the next item is available and then returns it.
         --
         --DOES block the main thread
+        next:function(self : Stream<Res>) : Res
 
-        next : function(self:Stream):(any)
+        loop_all:function<Out>(self : Stream<Res> , function(Res) : Out) : ({ Out })
 
-        loop_all : function<X>(self:Stream , function(any):(X)):({X})
+        help:function(string) : string
 
-        --Constructs a blocking iterator that will loop over all the items.
-
-        iter : function(Stream):(function(Stream):(any) , Stream)
-
-        help : function(string):(string)
 
     end
     
-    
-    record Interval
 
+    interface  Interval
         
     
-    --
+--
+        months:integer
 
-        months : integer
+        days:integer
 
-        days : integer
+        microseconds:integer
 
-        microseconds : integer
 
     end
     
