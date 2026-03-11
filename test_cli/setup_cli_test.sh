@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 VERSION_INFO=$(lua -v)
 FEATURE="lua51"
 
