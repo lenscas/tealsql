@@ -16,11 +16,13 @@ else
 fi
 
 if [[ $CI == true ]]; then
-    LUA_LIB="${PWD}/lua/lib/"
-    PKG_CONFIG_PATH="${PWD}/lua/lib/"
+    export LUA_LIB="${PWD}/.lua/lib/"
+    export LUA_LIB_NAME="lua"
+
 fi
 echo "Lua paths"
 echo $LUA_LIB
+echo $LUA_LIB_NAME
 which lua
 
 echo "Using lua version: " $FEATURE

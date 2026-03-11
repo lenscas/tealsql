@@ -75,6 +75,14 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v2
+      - uses: luarocks/gh-actions-lua@master
+        with:
+          luaVersion: ${{matrix.luaVersion}}
+      - uses: luarocks/gh-actions-luarocks@master
+      - name: install teal
+        run: luarocks install tl
+      - name: install cyan
+        run: luarocks install cyan
       - uses: dtolnay/rust-toolchain@stable
         with:
           rust-version: stable
@@ -88,14 +96,6 @@ jobs:
           PGPASSWORD: tealsql
       - name: install tealr_doc_gen
         run: cargo install tealr_doc_gen --git https://github.com/lenscas/tealr_doc_gen --debug
-      - uses: leafo/gh-actions-lua@v12.0.0
-        with:
-          luaVersion: ${{matrix.luaVersion}}
-      - uses: leafo/gh-actions-luarocks@v6.0.0
-      - name: install teal
-        run: luarocks install tl
-      - name: install cyan
-        run: luarocks install cyan
       - name: run setup_cli_test
         run: ./test_cli/setup_cli_test.sh
       - name: run cli tests
