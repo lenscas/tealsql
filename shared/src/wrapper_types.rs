@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 use serde::Serialize;
 use sqlx::postgres::types::PgInterval;
 use tealr::{
-    mlu::mlua::{FromLua, ToLua, Value},
+    mlu::mlua::{FromLua, IntoLua, Value},
     Field, KindOfType, RecordGenerator, ToTypename, Type,
 };
 
@@ -36,34 +36,34 @@ impl ToTypename for Interval {
         Type::new_single("Interval", KindOfType::External)
     }
 }
-impl<'lua> FromLua<'lua> for Interval {
+impl FromLua for Interval {
     fn from_lua(
-        lua_value: tealr::mlu::mlua::Value<'lua>,
-        _: &'lua tealr::mlu::mlua::Lua,
+        lua_value: tealr::mlu::mlua::Value,
+        _: &tealr::mlu::mlua::Lua,
     ) -> tealr::mlu::mlua::Result<Self> {
         if let Value::Table(x) = lua_value {
             Ok(PgInterval {
-                months: x.get::<_, i32>("months")?,
-                days: x.get::<_, i32>("days")?,
-                microseconds: x.get::<_, i64>("microseconds")?,
+                months: x.get::<i32>("months")?,
+                days: x.get::<i32>("days")?,
+                microseconds: x.get::<i64>("microseconds")?,
             }
             .into())
         } else {
             Err(tealr::mlu::mlua::Error::FromLuaConversionError {
                 from: lua_value.type_name(),
-                to: "Interval",
+                to: "Interval".into(),
                 message: None,
             })
         }
     }
 }
-impl<'lua> ToLua<'lua> for Interval {
-    fn to_lua(self, lua: &'lua tealr::mlu::mlua::Lua) -> tealr::mlu::mlua::Result<Value<'lua>> {
+impl IntoLua for Interval {
+    fn into_lua(self, lua: &tealr::mlu::mlua::Lua) -> tealr::mlu::mlua::Result<Value> {
         let table = lua.create_table()?;
         table.set("months", self.0.months)?;
         table.set("days", self.0.days)?;
         table.set("microseconds", self.0.microseconds)?;
-        table.to_lua(lua)
+        table.into_lua(lua)
     }
 }
 
@@ -91,7 +91,7 @@ fn get_interval_part(value: &Table, index: &str) -> tealr::mlu::mlua::Result<i64
         v.as_i64().ok_or_else(|| {
             tealr::mlu::mlua::Error::FromLuaConversionError {
                 from: "unknown",
-                to: "integer",
+                to: "integer".into(),
                 message: Some(
                     format!(
                         "Tried to convert {} to integer while constructing an `Interval` for field `{}`",

@@ -11,11 +11,6 @@ pub(crate) struct Pool {
     pool: PgPool,
     runtime: Arc<Runtime>,
 }
-// impl From<PgPool> for Pool {
-// fn from(pool: PgPool) -> Self {
-// Pool { pool }
-// }
-// }
 
 impl Pool {
     pub(crate) fn new(pool: PgPool, runtime: Arc<Runtime>) -> Self {
@@ -24,7 +19,7 @@ impl Pool {
 }
 
 impl TealData for Pool {
-    fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
+    fn add_methods<T: tealr::mlu::TealDataMethods<Self>>(methods: &mut T) {
         methods.document_type("A connection pool containing at most 10 connections.");
         methods.document_type("Opening a database connection for each and every operation to the database can quickly become expensive.");
         methods.document_type("A connection pool is a standard technique that can manage opening and re-using connections. Normally it also enforces a maximum number of connections as these are an expensive resource on the database server.");
@@ -40,7 +35,12 @@ impl TealData for Pool {
         );
         methods.add_method(
             "get_connection",
-            |_, me, call_back: tealr::mlu::TypedFunction<LuaConnection, crate::Res>| {
+            |_,
+             me,
+             call_back: tealr::mlu::TypedFunction<
+                LuaConnection,
+                tealr::mlu::mlua::Variadic<crate::Res>,
+            >| {
                 let con = me
                     .runtime
                     .block_on(me.pool.acquire())

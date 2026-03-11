@@ -19,12 +19,14 @@ fn libpgteal(_: &Lua) -> LuaResult<Base> {
     Ok(x)
 }
 
+tealr::create_generic_mlua!(pub(crate) Res);
+
 pub(crate) fn generate_types() -> TypeWalker {
     TypeWalker::new()
         .process_type_inline::<base::Base>()
         .process_type::<crate::pool::Pool>()
         .process_type::<crate::connection::LuaConnection>()
-        .process_type::<crate::iter::Iter>()
+        .process_type::<crate::iter::Iter<Res>>()
         .process_type::<shared::Interval>()
 }
 
@@ -33,8 +35,6 @@ pub fn generate_json(pretty: bool) -> Result<String, serde_json::Error> {
     if pretty {
         serde_json::to_string_pretty(&types)
     } else {
-        serde_json::to_string(&pretty)
+        serde_json::to_string(&types)
     }
 }
-
-tealr::create_generic_mlua!(pub(crate) Res);

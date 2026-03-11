@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 VERSION_INFO=$(lua -v)
 FEATURE="lua51"
 
@@ -13,13 +15,23 @@ else
     FEATURE="lua51"
 fi
 
+if [[ $CI == true ]]; then
+    export LUA_LIB="${PWD}/.lua/lib/"
+    export LUA_LIB_NAME="lua"
+
+fi
+echo "Lua paths"
+echo $LUA_LIB
+echo $LUA_LIB_NAME
+which lua
+
 echo "Using lua version: " $FEATURE
 
 cd pgteal_cli
 cargo build --features $FEATURE
 cd ../pgteal
-cargo build --lib --features $FEATURE,vendored
-cargo run --bin main --features $FEATURE,vendored > ../tealsql.json
+cargo build --lib --features $FEATURE
+cargo run --bin main --features $FEATURE > ../tealsql.json
 cd ../
 tealr_doc_gen run
 cd ./test_cli

@@ -2,7 +2,7 @@
 
 use either::Either;
 use futures::stream::BoxStream;
-use sqlx::{Acquire, Database, Error, Executor, Postgres};
+use sqlx::{postgres::PgStatement, Acquire, Database, Error, Executor, Postgres};
 
 #[derive(Debug)]
 pub(crate) enum WrappedConnection {
@@ -18,7 +18,7 @@ type StreamResult<'e, Res, Row> = BoxStream<'e, FetchManyResult<Res, Row>>;
 impl<'c> Executor<'c> for &'c mut WrappedConnection {
     type Database = Postgres;
 
-    fn fetch_many<'e, 'q: 'e, E: 'q>(
+    fn fetch_many<'e, 'q: 'e, E>(
         self,
         query: E,
     ) -> StreamResult<
@@ -28,7 +28,7 @@ impl<'c> Executor<'c> for &'c mut WrappedConnection {
     >
     where
         'c: 'e,
-        E: sqlx::Execute<'q, Self::Database>,
+        E: 'q + sqlx::Execute<'q, Self::Database>,
     {
         match self {
             WrappedConnection::PoolConnection(x) => x.fetch_many(query),
@@ -38,7 +38,7 @@ impl<'c> Executor<'c> for &'c mut WrappedConnection {
         }
     }
 
-    fn fetch_optional<'e, 'q: 'e, E: 'q>(
+    fn fetch_optional<'e, 'q: 'e, E>(
         self,
         query: E,
     ) -> futures::future::BoxFuture<
@@ -47,7 +47,7 @@ impl<'c> Executor<'c> for &'c mut WrappedConnection {
     >
     where
         'c: 'e,
-        E: sqlx::Execute<'q, Self::Database>,
+        E: 'q + sqlx::Execute<'q, Self::Database>,
     {
         match self {
             WrappedConnection::PoolConnection(x) => x.fetch_optional(query),
@@ -61,10 +61,7 @@ impl<'c> Executor<'c> for &'c mut WrappedConnection {
         self,
         sql: &'q str,
         parameters: &'e [<Self::Database as sqlx::Database>::TypeInfo],
-    ) -> futures::future::BoxFuture<
-        'e,
-        Result<<Self::Database as sqlx::database::HasStatement<'q>>::Statement, sqlx::Error>,
-    >
+    ) -> futures::future::BoxFuture<'e, Result<PgStatement<'q>, sqlx::Error>>
     where
         'c: 'e,
     {

@@ -3,47 +3,47 @@ on:
   pull_request:
     paths:
       - "**/*.rs"
-      - 'Cargo.toml'
-      - '**/Cargo.lock'
-      - '**/Cargo.toml'
-      - '.github/workflows/ci.yml'
+      - "Cargo.toml"
+      - "**/Cargo.lock"
+      - "**/Cargo.toml"
+      - ".github/workflows/ci.yml"
 jobs:
   formatting:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        tests :
+        tests:
           - "cargo fmt --all -- --check"
     steps:
-    - uses: actions/checkout@v2
-    - uses: hecrj/setup-rust-action@v1
-      with:
-        rust-version: stable
-        components: rustfmt
-    - name: Formatting check
-      run: ${{matrix.tests}}
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          rust-version: stable
+          components: rustfmt
+      - name: Formatting check
+        run: ${{matrix.tests}}
   clippy:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        tests :
+        tests:
           - "cargo clippy --features lua54"
           - "cargo clippy --features lua53"
           - "cargo clippy --features lua52"
           - "cargo clippy --features lua51"
     steps:
-    - uses: hecrj/setup-rust-action@v1.3.4 
-      with:
-        rust-version: stable
-        components: clippy
-    - uses: actions/checkout@master
-    - name: Clippy
-      run: ${{matrix.tests}}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          rust-version: stable
+          components: clippy
+      - uses: actions/checkout@master
+      - name: Clippy
+        run: ${{matrix.tests}}
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        luaVersion :
+        luaVersion:
           - "5.4"
           - "5.3"
           - "5.2"
@@ -75,6 +75,17 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v2
+      - uses: luarocks/gh-actions-lua@master
+        with:
+          luaVersion: ${{matrix.luaVersion}}
+      - uses: luarocks/gh-actions-luarocks@master
+      - name: install teal
+        run: luarocks install tl
+      - name: install cyan
+        run: luarocks install cyan
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          rust-version: stable
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update
@@ -85,13 +96,7 @@ jobs:
           PGPASSWORD: tealsql
       - name: install tealr_doc_gen
         run: cargo install tealr_doc_gen --git https://github.com/lenscas/tealr_doc_gen --debug
-      - uses: leafo/gh-actions-lua@v8.0.0
-        with:
-          luaVersion: ${{matrix.luaVersion}}
-      - uses: leafo/gh-actions-luarocks@v4.0.0
-      - name: install teal
-        run: luarocks install tl
       - name: run setup_cli_test
         run: ./test_cli/setup_cli_test.sh
       - name: run cli tests
-        run: cd ./test_cli/cli_test && tl build && lua test.lua
+        run: cd ./test_cli/cli_test && cyan build && lua test.lua

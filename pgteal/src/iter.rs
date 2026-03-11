@@ -1,52 +1,107 @@
-use mlua::ToLua;
+use mlua::IntoLuaMulti;
 use std::{
     collections::VecDeque,
-    sync::{atomic::AtomicBool, Arc, Mutex, MutexGuard},
+    sync::{
+        mpsc::{self, TryRecvError},
+        Arc, Mutex, MutexGuard,
+    },
     thread::JoinHandle,
 };
-use tealr::mlu::TealData;
+use tealr::{
+    mlu::mlua::{FromLua, IntoLua, UserData, UserDataRef, UserDataRefMut},
+    RecordGenerator, TealMultiValue, ToTypename,
+};
+use tealr::{
+    mlu::{TealData, UserDataWrapper},
+    TypeBody,
+};
 
 use sqlx::postgres::PgRow;
 
-use triple_buffer::{Input, Output, TripleBuffer};
+use std::sync::mpsc::{Receiver, Sender};
 
 use crate::base::Error;
+
+struct ReceiverAndCache(VecDeque<AsyncMessage>, Receiver<Vec<AsyncMessage>>);
 
 pub(crate) enum AsyncMessage {
     Value(PgRow),
     Error(sqlx::Error),
     DynError(Arc<dyn std::error::Error + Sync + Send>),
 }
-#[derive(tealr::mlu::UserData, Clone)]
-pub(crate) struct Iter {
+pub(crate) struct Iter<X> {
     handle: Arc<Mutex<Option<JoinHandle<()>>>>,
-    channel: Arc<Mutex<Output<VecDeque<AsyncMessage>>>>,
-    close_check: Arc<AtomicBool>,
+    channel: Arc<Mutex<ReceiverAndCache>>,
+    _x: std::marker::PhantomData<fn() -> X>,
 }
 
-impl tealr::ToTypename for Iter {
+impl<X> Clone for Iter<X> {
+    fn clone(&self) -> Self {
+        Self {
+            handle: self.handle.clone(),
+            channel: self.channel.clone(),
+            _x: self._x,
+        }
+    }
+}
+impl<X: ToTypename> tealr::ToTypename for Iter<X> {
     fn to_typename() -> tealr::Type {
-        tealr::Type::new_single("Stream", tealr::KindOfType::External)
+        tealr::Type::new_single_with_generics(
+            "Stream",
+            tealr::KindOfType::External,
+            vec![X::to_typename()],
+        )
+    }
+}
+
+impl<X: ToTypename + 'static + FromLua + IntoLua> TypeBody for Iter<X> {
+    fn get_type_body() -> tealr::TypeGenerator {
+        let mut a = RecordGenerator::new::<Self>(false);
+        a.is_user_data = true;
+        <Self as TealData>::add_fields(&mut a);
+        <Self as TealData>::add_methods(&mut a);
+        tealr::TypeGenerator::Record(Box::new(a))
+    }
+}
+
+impl<X: ToTypename + 'static + FromLua + IntoLua> UserData for Iter<X> {
+    fn add_fields<F: mlua::UserDataFields<Self>>(fields: &mut F) {
+        <Self as TealData>::add_fields(&mut UserDataWrapper::from_user_data_fields(fields));
+    }
+
+    fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
+        <Self as TealData>::add_methods(&mut UserDataWrapper::from_user_data_methods(methods));
     }
 }
 
 fn get_through_locs(
-    close_check: Arc<AtomicBool>,
-    lock_channel: &mut MutexGuard<Output<VecDeque<AsyncMessage>>>,
+    lock_channel: &mut MutexGuard<ReceiverAndCache>,
     force: bool,
-) -> Result<(Option<PgRow>, bool), mlua::Error> {
+) -> Result<(Option<PgRow>, bool), tealr::mlu::mlua::Error> {
     loop {
-        let x = lock_channel.output_buffer();
-        let disconnected = x.is_empty() && close_check.load(std::sync::atomic::Ordering::SeqCst);
-        if disconnected {
+        let is_disconnected = if lock_channel.0.is_empty() {
+            match lock_channel.1.try_recv() {
+                Err(TryRecvError::Disconnected) => true,
+                Err(TryRecvError::Empty) => false,
+                Ok(x) => {
+                    lock_channel.0.extend(x);
+                    false
+                }
+            }
+        } else {
+            false
+        };
+
+        if is_disconnected {
             break Ok((None, true));
         } else {
-            let item = x.pop_front();
-            lock_channel.update();
+            let item = lock_channel.0.pop_front();
             let res = match item {
-                Some(AsyncMessage::DynError(x)) => return Err(mlua::Error::external(x)),
+                Some(AsyncMessage::DynError(x)) => {
+                    return Err(tealr::mlu::mlua::Error::external(x))
+                }
                 Some(AsyncMessage::Error(x)) => return Err(Error::Sqlx(x).into()),
-                Some(AsyncMessage::Value(x)) => Some(x),
+                Some(AsyncMessage::Value(x)) => return Ok((Some(x), false)),
                 None => None,
             };
             if !force {
@@ -56,35 +111,30 @@ fn get_through_locs(
     }
 }
 
-impl Iter {
+tealr::mlu::create_generic!(pub(crate) Out);
+
+impl<X: ToTypename + 'static + mlua::FromLua + IntoLuaMulti + TealMultiValue> Iter<X> {
     pub(crate) fn from_func<
         ThreadFunc: FnOnce() + Send + 'static,
-        FuncSpawner: FnOnce(Input<VecDeque<AsyncMessage>>, Arc<AtomicBool>) -> ThreadFunc,
+        FuncSpawner: FnOnce(Sender<Vec<AsyncMessage>>) -> ThreadFunc,
     >(
         func: FuncSpawner,
     ) -> Self {
-        let close_check = Arc::new(AtomicBool::new(false));
-        let (sender, rec) = TripleBuffer::default().split();
-        let thread_func = func(sender, close_check.clone());
+        let (sender, rec) = mpsc::channel();
+        let thread_func = func(sender);
         let handle = std::thread::spawn(thread_func);
-        Self::new(handle, rec, close_check)
+        Self::new(handle, rec)
     }
 
-    pub(crate) fn new(
-        handle: JoinHandle<()>,
-        channel: Output<VecDeque<AsyncMessage>>,
-        close_check: Arc<AtomicBool>,
-    ) -> Self {
+    pub(crate) fn new(handle: JoinHandle<()>, channel: Receiver<Vec<AsyncMessage>>) -> Self {
         Self {
             handle: Arc::new(Mutex::new(Some(handle))),
-            channel: Arc::new(Mutex::new(channel)),
-            close_check,
+            channel: Arc::new(Mutex::new(ReceiverAndCache(Default::default(), channel))),
+            _x: std::marker::PhantomData,
         }
     }
 
     fn join(&mut self) {
-        self.close_check
-            .store(true, std::sync::atomic::Ordering::SeqCst);
         match self.handle.lock() {
             Ok(mut x) => {
                 if let Some(x) = x.take() {
@@ -96,20 +146,20 @@ impl Iter {
     }
 
     fn get_lock(
-        a: &mut Arc<Mutex<Output<VecDeque<AsyncMessage>>>>,
-    ) -> Result<MutexGuard<'_, Output<VecDeque<AsyncMessage>>>, mlua::Error> {
+        a: &mut Arc<Mutex<ReceiverAndCache>>,
+    ) -> Result<MutexGuard<'_, ReceiverAndCache>, tealr::mlu::mlua::Error> {
         match a.lock() {
             Ok(x) => Ok(x),
-            Err(_) => Err(mlua::Error::external(crate::base::Error::Custom(
-                "channel is already in use".into(),
-            ))),
+            Err(_) => Err(tealr::mlu::mlua::Error::external(
+                crate::base::Error::Custom("channel is already in use".into()),
+            )),
         }
     }
 
-    fn get_from_cache(&mut self, force: bool) -> Result<Option<PgRow>, mlua::Error> {
+    fn get_from_cache(&mut self, force: bool) -> Result<Option<PgRow>, tealr::mlu::mlua::Error> {
         let (item, is_disconnected) = {
             let mut lock_channel = Self::get_lock(&mut self.channel)?;
-            get_through_locs(self.close_check.clone(), &mut lock_channel, force)?
+            get_through_locs(&mut lock_channel, force)?
         };
         if is_disconnected {
             self.join();
@@ -117,20 +167,20 @@ impl Iter {
         Ok(item)
     }
 
-    fn run_all<'lua>(
+    fn run_all(
         &mut self,
         force: bool,
-        lua: &'lua mlua::Lua,
-        func: tealr::mlu::TypedFunction<'lua, mlua::Value<'lua>, tealr::mlu::generics::X<'lua>>,
-    ) -> Result<Vec<tealr::mlu::generics::X<'lua>>, mlua::Error> {
+        lua: &tealr::mlu::mlua::Lua,
+        func: tealr::mlu::TypedFunction<X, Out>,
+    ) -> Result<Vec<Out>, tealr::mlu::mlua::Error> {
         let mut res = Vec::new();
         {
             let mut lock_channel = Self::get_lock(&mut self.channel)?;
             loop {
-                let (item, is_disconnected) =
-                    get_through_locs(self.close_check.clone(), &mut lock_channel, force)?;
+                let (item, is_disconnected) = get_through_locs(&mut lock_channel, force)?;
                 if let Some(x) = item {
-                    let x = crate::pg_row::LuaRow::from(x).to_lua(lua)?;
+                    let x = X::from_lua(crate::pg_row::LuaRow::from(x).into_lua(lua)?, lua)?;
+
                     res.push(func.call(x)?);
                 }
 
@@ -143,12 +193,12 @@ impl Iter {
         Ok(res)
     }
 
-    fn next_lua_maybe_cached<'lua>(
+    fn next_lua_maybe_cached(
         &mut self,
-        lua: &'lua mlua::Lua,
+        lua: &tealr::mlu::mlua::Lua,
         force: bool,
-        cached: Option<mlua::Table<'lua>>,
-    ) -> mlua::Result<Option<mlua::Value<'lua>>> {
+        cached: Option<tealr::mlu::mlua::Table>,
+    ) -> tealr::mlu::mlua::Result<Option<X>> {
         let cached = match cached {
             Some(x) => x,
             None => lua.create_table()?,
@@ -156,25 +206,25 @@ impl Iter {
         self.next_lua(lua, force, cached)
     }
 
-    fn next_lua<'lua>(
+    fn next_lua(
         &mut self,
-        lua: &'lua mlua::Lua,
+        lua: &tealr::mlu::mlua::Lua,
         force: bool,
-        cached: mlua::Table<'lua>,
-    ) -> mlua::Result<Option<mlua::Value<'lua>>> {
+        cached: tealr::mlu::mlua::Table,
+    ) -> tealr::mlu::mlua::Result<Option<X>> {
         let next = self
             .get_from_cache(force)?
             .map(|v| crate::pg_row::LuaRow::from(v).into_lua_cached(lua, cached));
         match next {
             Some(Err(x)) => Err(x),
-            Some(Ok(x)) => Ok(Some(x)),
+            Some(Ok(x)) => Ok(Some(X::from_lua(x, lua)?)),
             None => Ok(None),
         }
     }
 }
 
-impl TealData for Iter {
-    fn add_methods<'lua, T: tealr::mlu::TealDataMethods<'lua, Self>>(methods: &mut T) {
+impl<X: ToTypename + 'static + mlua::FromLua + mlua::IntoLua> TealData for Iter<X> {
+    fn add_methods<T: tealr::mlu::TealDataMethods<Self>>(methods: &mut T) {
         methods.document_type("Returned from connection:fetch_all_async(). It allows you to do other things while the query is running in a background thread.");
 
         methods.document("returns the next item if it is available or nill if not.");
@@ -189,16 +239,29 @@ impl TealData for Iter {
             this.next_lua_maybe_cached(lua, true, None)
         });
         methods.document("Constructs a blocking iterator that will loop over all the items.");
-        methods.add_function("iter", |lua, this: Self| {
+        methods.add_method("iter", |lua, this, ()| {
             let func = tealr::mlu::TypedFunction::from_rust_mut(
-                |lua, mut this: Self| this.next_lua_maybe_cached(lua, true, None),
+                move |lua, mut this: UserDataRefMut<Self>| {
+                    this.next_lua_maybe_cached(lua, true, None)
+                },
                 lua,
             )?;
-            Ok((func, this))
+            Ok((func, this.to_owned()))
         });
-        methods.add_method_mut("loop_all", |lua,this, func:tealr::mlu::TypedFunction<tealr::mlu::mlua::Value, tealr::mlu::generics::X>|{
-            this.run_all(true,lua,func)
-        });
+        methods.add_method_mut(
+            "loop_all",
+            |lua, this, func: tealr::mlu::TypedFunction<X, Out>| this.run_all(true, lua, func),
+        );
         methods.generate_help();
+    }
+}
+
+impl<X: ToTypename + 'static> FromLua for Iter<X> {
+    fn from_lua(
+        value: tealr::mlu::mlua::Value,
+        lua: &tealr::mlu::mlua::Lua,
+    ) -> tealr::mlu::mlua::Result<Self> {
+        let x = UserDataRef::<Self>::from_lua(value, lua)?;
+        Ok(Iter::to_owned(&x))
     }
 }

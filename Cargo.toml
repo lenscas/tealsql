@@ -1,9 +1,6 @@
 [workspace]
-members = [
-  "pgteal_cli",
-  "pgteal",
-  "shared",
-]
+members = ["pgteal_cli", "pgteal", "shared"]
+resolver = "2"
 
 [profile.release]
 debug = true
